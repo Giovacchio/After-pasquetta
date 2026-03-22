@@ -2,7 +2,8 @@
   "name": "After Pasquetta",
   "short_name": "Pasquetta",
   "description": "Sondaggi e chat per l'after pasquetta",
-  "start_url": "/after-pasquetta/",
+  "start_url": "/After-pasquetta/",
+  "scope": "/After-pasquetta/",
   "display": "standalone",
   "background_color": "#f5f3ee",
   "theme_color": "#2d6a4f",
@@ -11,12 +12,14 @@
     {
       "src": "icon-192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
       "src": "icon-512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }
