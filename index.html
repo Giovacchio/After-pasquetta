@@ -112,9 +112,15 @@
   .chk-box{width:22px;height:22px;border-radius:6px;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.15s;background:#fff;}
   .option-chk.selected .chk-box{background:var(--accent);border-color:var(--accent);color:#fff;}
   .chk-tick{font-size:0.85rem;line-height:1;}
-  .q-card{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:1rem;margin-bottom:0.6rem;}
+  .q-card{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:1rem;margin-bottom:0.6rem;transition:border-color 0.2s;}
+  .q-card.editing{border-color:var(--accent2);background:var(--card);}
   .q-card-title{font-family:'Syne',sans-serif;font-weight:700;font-size:0.9rem;margin-bottom:0.3rem;color:var(--text);}
   .q-card-meta{font-size:0.78rem;color:var(--muted);}
+  .q-card-header{display:flex;align-items:flex-start;justify-content:space-between;gap:0.5rem;}
+  .btn-edit-q{background:none;border:1.5px solid var(--border);color:var(--muted);border-radius:8px;padding:0.25rem 0.6rem;font-size:0.75rem;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer;white-space:nowrap;transition:all 0.15s;flex-shrink:0;}
+  .btn-edit-q:hover{border-color:var(--accent);color:var(--accent);}
+  .q-edit-form{margin-top:0.9rem;padding-top:0.9rem;border-top:1px solid var(--border);}
+  .q-edit-form input[type="text"]{margin-bottom:0.7rem;}
   .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;}
   .divider{height:1px;background:var(--border);margin:1rem 0;}
   /* Voter name banner on home */
@@ -456,12 +462,101 @@ async function loadEditScreen(pollId){
   const eqEl=document.getElementById('existing-qs');
   qKeys.forEach(k=>{
     const q=questions[k]; const vCount=q.votes?Object.keys(q.votes).length:0;
-    const div=document.createElement('div'); div.className='q-card';
-    div.innerHTML=`<div class="q-card-title">${q.text}</div><div class="q-card-meta">${q.options.length} opzioni · ${vCount} voti · ${q.multiple?'risposta multipla':'risposta singola'}</div>`;
-    eqEl.appendChild(div);
+    eqEl.appendChild(buildQCard(k,q,vCount,pollId));
   });
 }
 window.loadEditScreen=loadEditScreen;
+
+function buildQCard(qKey, q, vCount, pollId){
+  const div=document.createElement('div'); div.className='q-card';
+  div.dataset.qkey=qKey;
+  div.innerHTML=`
+    <div class="q-card-header">
+      <div>
+        <div class="q-card-title">${q.text}</div>
+        <div class="q-card-meta">${q.options.length} opzioni · ${vCount} voti · ${q.multiple?'risposta multipla':'risposta singola'}</div>
+      </div>
+      <button class="btn-edit-q" onclick="toggleQEdit(this,'${qKey}','${pollId}')">✏️ Modifica</button>
+    </div>
+    <div class="q-edit-form" id="qedit-${qKey}" style="display:none"></div>`;
+  return div;
+}
+
+window.toggleQEdit=function(btn, qKey, pollId){
+  const form=document.getElementById('qedit-'+qKey);
+  const card=btn.closest('.q-card');
+  if(form.style.display!=='none'){ form.style.display='none'; card.classList.remove('editing'); btn.textContent='✏️ Modifica'; return; }
+  // Leggi dati attuali dal Firebase
+  get(ref(db,`polls/${pollId}/questions/${qKey}`)).then(snap=>{
+    if(!snap.exists()) return;
+    const q=snap.val();
+    const isMulti=q.multiple===true;
+    const optsHTML=q.options.map((o,i)=>`
+      <div class="opt-row">
+        <input type="text" class="opt-input-edit" value="${o.replace(/"/g,'&quot;')}">
+        <button class="btn-remove" onclick="removeOptInEdit(this)">×</button>
+      </div>`).join('');
+    form.innerHTML=`
+      <input type="text" class="qedit-text" value="${(q.text||'').replace(/"/g,'&quot;')}" placeholder="Testo domanda">
+      <label style="margin-bottom:0.4rem">Tipo di risposta</label>
+      <div class="q-type-toggle qedit-type-toggle" style="margin-bottom:0.8rem">
+        <button class="q-type-btn${!isMulti?' active':''}" data-type="single" onclick="setQType(this,'single')">☑ Risposta singola</button>
+        <button class="q-type-btn${isMulti?' active':''}" data-type="multi" onclick="setQType(this,'multi')">☑☑ Risposta multipla</button>
+      </div>
+      <label>Opzioni</label>
+      <div class="qedit-opts">${optsHTML}</div>
+      <button class="btn btn-secondary" style="margin-top:0.4rem;font-size:0.8rem;margin-bottom:0.8rem" onclick="addOptInEdit(this)">+ Opzione</button>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="btn-save-${qKey}" onclick="saveQEdit('${pollId}','${qKey}',this)">💾 Salva</button>
+        <button class="btn btn-secondary" onclick="toggleQEdit(document.querySelector('[data-qkey=\'${qKey}\'] .btn-edit-q'),'${qKey}','${pollId}')">Annulla</button>
+      </div>`;
+    form.style.display='block';
+    card.classList.add('editing');
+    btn.textContent='✕ Chiudi';
+  });
+};
+
+window.addOptInEdit=function(btn){
+  const opts=btn.previousElementSibling; const c=opts.children.length;
+  const row=document.createElement('div'); row.className='opt-row';
+  row.innerHTML=`<input type="text" class="opt-input-edit" placeholder="Opzione ${LETTERS[c]}"><button class="btn-remove" onclick="removeOptInEdit(this)">×</button>`;
+  opts.appendChild(row);
+};
+window.removeOptInEdit=function(btn){
+  const opts=btn.parentElement.parentElement;
+  if(opts.children.length<=2) return;
+  btn.parentElement.remove();
+};
+
+window.saveQEdit=async function(pollId, qKey, btn){
+  const form=document.getElementById('qedit-'+qKey);
+  const text=form.querySelector('.qedit-text').value.trim();
+  const opts=[...form.querySelectorAll('.opt-input-edit')].map(i=>i.value.trim()).filter(Boolean);
+  const activeTypeBtn=form.querySelector('.qedit-type-toggle .q-type-btn.active');
+  const multiple=activeTypeBtn?activeTypeBtn.dataset.type==='multi':false;
+  if(!text) return showToast('Inserisci il testo');
+  if(opts.length<2) return showToast('Almeno 2 opzioni');
+  btn.disabled=true; btn.innerHTML='<span class="spinner"></span>Salvataggio...';
+  // Fetch existing data to preserve votes and order
+  const snap=await get(ref(db,`polls/${pollId}/questions/${qKey}`));
+  const existing=snap.exists()?snap.val():{};
+  await update(ref(db,`polls/${pollId}/questions`),{
+    [qKey]:{...existing, text, options:opts, multiple}
+  });
+  showToast('Domanda aggiornata!');
+  // Aggiorna la card visivamente
+  const card=document.querySelector(`[data-qkey='${qKey}']`);
+  if(card){
+    const vCount=existing.votes?Object.keys(existing.votes).length:0;
+    card.querySelector('.q-card-title').textContent=text;
+    card.querySelector('.q-card-meta').textContent=`${opts.length} opzioni · ${vCount} voti · ${multiple?'risposta multipla':'risposta singola'}`;
+  }
+  // Chiudi form
+  form.style.display='none';
+  card?.classList.remove('editing');
+  const editBtn=card?.querySelector('.btn-edit-q');
+  if(editBtn) editBtn.textContent='✏️ Modifica';
+};
 window.addOptInNew=function(){
   const opts=document.getElementById('new-q-opts'); const c=opts.children.length;
   const row=document.createElement('div'); row.className='opt-row';
