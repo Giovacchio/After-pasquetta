@@ -1,0 +1,36 @@
+name: Bump SW Version
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'index.html'
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Bump cache version in sw.js
+        run: |
+          # Legge la versione attuale (es. after-pasquetta-v4)
+          CURRENT=$(grep -o "after-pasquetta-v[0-9]*" sw.js | head -1)
+          NUM=$(echo $CURRENT | grep -o "[0-9]*$")
+          NEW_NUM=$((NUM + 1))
+          NEW="after-pasquetta-v${NEW_NUM}"
+          
+          echo "Bumping: $CURRENT → $NEW"
+          sed -i "s/${CURRENT}/${NEW}/g" sw.js
+
+      - name: Commit updated sw.js
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add sw.js
+          git diff --staged --quiet || git commit -m "chore: bump SW cache version [skip ci]"
+          git push
