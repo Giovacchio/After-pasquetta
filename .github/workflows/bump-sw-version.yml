@@ -7,6 +7,9 @@ on:
     paths:
       - 'index.html'
 
+permissions:
+  contents: write
+
 jobs:
   bump:
     runs-on: ubuntu-latest
@@ -18,7 +21,6 @@ jobs:
 
       - name: Bump cache version in sw.js
         run: |
-          # Legge la versione attuale (es. after-pasquetta-v4)
           CURRENT=$(grep -o "after-pasquetta-v[0-9]*" sw.js | head -1)
           NUM=$(echo $CURRENT | grep -o "[0-9]*$")
           NEW_NUM=$((NUM + 1))
