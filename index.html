@@ -653,7 +653,7 @@ async function loadHome(autoVoter){
       };
       el.appendChild(div);
     });
-  }catch(e){ el.innerHTML='<div style="color:var(--danger)">Errore: '+e.message+'</div>'; }
+  }catch(e){ el.innerHTML='<div style="color:var(--danger)">Errore: '+esc(e.message)+'</div>'; }
 }
 window.loadHome=loadHome;
 
@@ -690,7 +690,7 @@ function renderQForms(){
         <label style="margin:0">Domanda ${qi+1}</label>
         <button class="btn-remove" onclick="removeQForm(${qi})">×</button>
       </div>
-      <input type="text" class="qf-text" placeholder="Es. Cosa ordiniamo?" style="margin-bottom:1rem" value="${(q.text||'').replace(/"/g,'&quot;')}">
+      <input type="text" class="qf-text" placeholder="Es. Cosa ordiniamo?" style="margin-bottom:1rem" value="${esc(q.text||'')}">
       <label style="margin-bottom:0.4rem">Tipo di risposta</label>
       <div class="q-type-toggle" style="margin-bottom:1rem">
         <button class="q-type-btn${!isMulti?' active':''}" data-type="single" onclick="setQType(this,'single')">☑ Risposta singola</button>
@@ -752,14 +752,20 @@ async function createPoll(){
   if(questions.length===0) return showToast('Aggiungi almeno una domanda');
   const btn=document.getElementById('btn-create');
   btn.disabled=true; btn.innerHTML='<span class="spinner"></span>Creazione...';
-  const pollRef=push(ref(db,'polls'));
-  const qMap={};
-  questions.forEach((q,i)=>{ qMap[`q${i}`]={text:q.text,options:q.options,multiple:q.multiple||false,text_type:q.text_type||false,order:i}; });
-  await set(pollRef,{title,creator,createdAt:Date.now(),questions:qMap});
-  btn.disabled=false; btn.textContent='Crea sondaggio';
-  qForms=[]; renderQForms();
-  showToast('Sondaggio creato!');
-  loadHome();
+  try{
+    const pollRef=push(ref(db,'polls'));
+    const qMap={};
+    questions.forEach((q,i)=>{ qMap[`q${i}`]={text:q.text,options:q.options,multiple:q.multiple||false,text_type:q.text_type||false,order:i}; });
+    await set(pollRef,{title,creator,createdAt:Date.now(),questions:qMap});
+    qForms=[]; renderQForms();
+    showToast('Sondaggio creato!');
+    loadHome();
+  }catch(e){
+    showToast('Errore creazione: '+e.message);
+    console.error('createPoll error:',e);
+  }finally{
+    btn.disabled=false; btn.textContent='Crea sondaggio';
+  }
 }
 window.createPoll=createPoll;
 addQuestionForm();
@@ -769,9 +775,10 @@ async function loadEditScreen(pollId){
   goTo('screen-edit');
   const content=document.getElementById('edit-content');
   content.innerHTML='<div style="color:var(--muted)"><span class="spinner"></span>Caricamento...</div>';
-  const snap=await get(ref(db,`polls/${pollId}`));
-  if(!snap.exists()){ content.innerHTML='<div style="color:var(--danger)">Non trovato.</div>'; return; }
-  const poll=snap.val();
+  try{
+    const snap=await get(ref(db,`polls/${pollId}`));
+    if(!snap.exists()){ content.innerHTML='<div style="color:var(--danger)">Non trovato.</div>'; return; }
+    const poll=snap.val();
   const questions=poll.questions||{};
   const qKeys=Object.keys(questions).sort((a,b)=>(questions[a].order||0)-(questions[b].order||0));
   content.innerHTML=`
@@ -807,6 +814,10 @@ async function loadEditScreen(pollId){
     const q=questions[k]; const vCount=q.votes?Object.keys(q.votes).length:0;
     eqEl.appendChild(buildQCard(k,q,vCount,pollId));
   });
+  }catch(e){
+    content.innerHTML='<div style="color:var(--danger)">Errore caricamento: '+esc(e.message)+'</div>';
+    console.error('loadEditScreen error:',e);
+  }
 }
 window.loadEditScreen=loadEditScreen;
 
@@ -816,7 +827,7 @@ function buildQCard(qKey, q, vCount, pollId){
   div.innerHTML=`
     <div class="q-card-header">
       <div>
-        <div class="q-card-title">${q.text}</div>
+        <div class="q-card-title">${esc(q.text)}</div>
         <div class="q-card-meta">${q.text_type?'testuale':(q.options.length+' opzioni')} · ${vCount} voti · ${q.text_type?'risposta testuale':q.multiple?'risposta multipla':'risposta singola'}</div>
       </div>
       <button class="btn-edit-q" onclick="toggleQEdit(this,'${qKey}','${pollId}')">✏️ Modifica</button>
@@ -836,11 +847,11 @@ window.toggleQEdit=function(btn, qKey, pollId){
     const isMulti=q.multiple===true; const isText=q.text_type===true;
     const optsHTML=q.options.map((o,i)=>`
       <div class="opt-row">
-        <input type="text" class="opt-input-edit" value="${o.replace(/"/g,'&quot;')}">
+        <input type="text" class="opt-input-edit" value="${esc(o)}">
         <button class="btn-remove" onclick="removeOptInEdit(this)">×</button>
       </div>`).join('');
     form.innerHTML=`
-      <input type="text" class="qedit-text" value="${(q.text||'').replace(/"/g,'&quot;')}" placeholder="Testo domanda">
+      <input type="text" class="qedit-text" value="${esc(q.text||'')}" placeholder="Testo domanda">
       <label style="margin-bottom:0.4rem">Tipo di risposta</label>
       <div class="q-type-toggle qedit-type-toggle" style="margin-bottom:0.8rem">
         <button class="q-type-btn${!isMulti&&!isText?' active':''}" data-type="single" onclick="setQType(this,'single')">☑ Singola</button>
@@ -882,25 +893,32 @@ window.saveQEdit=async function(pollId, qKey, btn){
   if(!text) return showToast('Inserisci il testo');
   if(!text_type && opts.length<2) return showToast('Almeno 2 opzioni');
   btn.disabled=true; btn.innerHTML='<span class="spinner"></span>Salvataggio...';
-  // Fetch existing data to preserve votes and order
-  const snap=await get(ref(db,`polls/${pollId}/questions/${qKey}`));
-  const existing=snap.exists()?snap.val():{};
-  await update(ref(db,`polls/${pollId}/questions`),{
-    [qKey]:{...existing, text, options:opts, multiple, text_type}
-  });
-  showToast('Domanda aggiornata!');
-  // Aggiorna la card visivamente
-  const card=document.querySelector(`[data-qkey='${qKey}']`);
-  if(card){
-    const vCount=existing.votes?Object.keys(existing.votes).length:0;
-    card.querySelector('.q-card-title').textContent=text;
-    card.querySelector('.q-card-meta').textContent=`${text_type?'testuale':opts.length+' opzioni'} · ${vCount} voti · ${text_type?'risposta testuale':multiple?'risposta multipla':'risposta singola'}`;
+  try{
+    // Fetch existing data to preserve votes and order
+    const snap=await get(ref(db,`polls/${pollId}/questions/${qKey}`));
+    const existing=snap.exists()?snap.val():{};
+    await update(ref(db,`polls/${pollId}/questions`),{
+      [qKey]:{...existing, text, options:opts, multiple, text_type}
+    });
+    showToast('Domanda aggiornata!');
+    // Aggiorna la card visivamente
+    const card=document.querySelector(`[data-qkey='${qKey}']`);
+    if(card){
+      const vCount=existing.votes?Object.keys(existing.votes).length:0;
+      card.querySelector('.q-card-title').textContent=text;
+      card.querySelector('.q-card-meta').textContent=`${text_type?'testuale':opts.length+' opzioni'} · ${vCount} voti · ${text_type?'risposta testuale':multiple?'risposta multipla':'risposta singola'}`;
+    }
+    // Chiudi form
+    form.style.display='none';
+    card?.classList.remove('editing');
+    const editBtn=card?.querySelector('.btn-edit-q');
+    if(editBtn) editBtn.textContent='✏️ Modifica';
+  }catch(e){
+    showToast('Errore salvataggio: '+e.message);
+    console.error('saveQEdit error:',e);
+  }finally{
+    btn.disabled=false; btn.textContent='💾 Salva';
   }
-  // Chiudi form
-  form.style.display='none';
-  card?.classList.remove('editing');
-  const editBtn=card?.querySelector('.btn-edit-q');
-  if(editBtn) editBtn.textContent='✏️ Modifica';
 };
 window.addOptInNew=function(){
   const opts=document.getElementById('new-q-opts'); const c=opts.children.length;
@@ -921,34 +939,40 @@ window.submitNewQuestion=async function(pollId,currentCount){
   const btn=document.getElementById('btn-add-q');
   btn.disabled=true; btn.innerHTML='<span class="spinner"></span>Salvataggio...';
   const newKey=`q${currentCount}`;
-  await update(ref(db,`polls/${pollId}/questions`),{[newKey]:{text,options:text_type?[]:opts,multiple,text_type,order:currentCount}});
-  showToast('Domanda aggiunta!');
+  try{
+    await update(ref(db,`polls/${pollId}/questions`),{[newKey]:{text,options:text_type?[]:opts,multiple,text_type,order:currentCount}});
+    showToast('Domanda aggiunta!');
 
-  // Aggiorna solo la lista esistente senza ricostruire tutto
-  const eqEl=document.getElementById('existing-qs');
-  if(eqEl){
-    const empty=eqEl.querySelector('div');
-    if(empty && empty.style.color) empty.remove();
-    const div=document.createElement('div'); div.className='q-card';
-    div.innerHTML=`<div class="q-card-title">${text}</div><div class="q-card-meta">${text_type?'testuale':opts.length+' opzioni'} · 0 voti · ${text_type?'risposta testuale':multiple?'risposta multipla':'risposta singola'}</div>`;
-    eqEl.appendChild(div);
-    const secTitle=eqEl.closest('.card')?.querySelector('.section-title');
-    if(secTitle) secTitle.textContent=`Domande esistenti (${currentCount+1})`;
+    // Aggiorna solo la lista esistente senza ricostruire tutto
+    const eqEl=document.getElementById('existing-qs');
+    if(eqEl){
+      const empty=eqEl.querySelector('div');
+      if(empty && empty.style.color) empty.remove();
+      const div=document.createElement('div'); div.className='q-card';
+      div.innerHTML=`<div class="q-card-title">${esc(text)}</div><div class="q-card-meta">${text_type?'testuale':opts.length+' opzioni'} · 0 voti · ${text_type?'risposta testuale':multiple?'risposta multipla':'risposta singola'}</div>`;
+      eqEl.appendChild(div);
+      const secTitle=eqEl.closest('.card')?.querySelector('.section-title');
+      if(secTitle) secTitle.textContent=`Domande esistenti (${currentCount+1})`;
+    }
+
+    btn.onclick=()=>window.submitNewQuestion(pollId, currentCount+1);
+
+    // Reset form
+    document.getElementById('new-q-text').value='';
+    const optsEl=document.getElementById('new-q-opts');
+    optsEl.innerHTML=`
+      <div class="opt-row"><input type="text" placeholder="Opzione A" class="opt-input"><button class="btn-remove" onclick="removeOptInNew(this)">×</button></div>
+      <div class="opt-row"><input type="text" placeholder="Opzione B" class="opt-input"><button class="btn-remove" onclick="removeOptInNew(this)">×</button></div>`;
+    // Reset toggle a singola
+    const toggle=document.getElementById('new-q-type-toggle');
+    if(toggle){ toggle.querySelectorAll('.q-type-btn').forEach((b,i)=>{b.classList.toggle('active',i===0);}); }
+    document.getElementById('new-q-text').focus();
+  }catch(e){
+    showToast('Errore: '+e.message);
+    console.error('submitNewQuestion error:',e);
+  }finally{
+    btn.disabled=false; btn.textContent='Aggiungi domanda';
   }
-
-  btn.disabled=false; btn.textContent='Aggiungi domanda';
-  btn.onclick=()=>window.submitNewQuestion(pollId, currentCount+1);
-
-  // Reset form
-  document.getElementById('new-q-text').value='';
-  const optsEl=document.getElementById('new-q-opts');
-  optsEl.innerHTML=`
-    <div class="opt-row"><input type="text" placeholder="Opzione A" class="opt-input"><button class="btn-remove" onclick="removeOptInNew(this)">×</button></div>
-    <div class="opt-row"><input type="text" placeholder="Opzione B" class="opt-input"><button class="btn-remove" onclick="removeOptInNew(this)">×</button></div>`;
-  // Reset toggle a singola
-  const toggle=document.getElementById('new-q-type-toggle');
-  if(toggle){ toggle.querySelectorAll('.q-type-btn').forEach((b,i)=>{b.classList.toggle('active',i===0);}); }
-  document.getElementById('new-q-text').focus();
 };
 
 // ── VOTE ──────────────────────────────────────────────
@@ -956,7 +980,14 @@ async function loadVoteScreen(pollId, voterName){
   goTo('screen-vote');
   const content=document.getElementById('vote-content');
   content.innerHTML='<div style="color:var(--muted);padding:2rem 0"><span class="spinner"></span>Caricamento...</div>';
-  const snap=await get(ref(db,`polls/${pollId}`));
+  let snap;
+  try{
+    snap=await get(ref(db,`polls/${pollId}`));
+  }catch(e){
+    content.innerHTML='<div style="color:var(--danger);padding:2rem 0">Errore caricamento: '+esc(e.message)+'</div>';
+    console.error('loadVoteScreen error:',e);
+    return;
+  }
   if(!snap.exists()){ content.innerHTML='<div style="color:var(--danger);padding:2rem 0">Sondaggio non trovato.</div>'; return; }
   const poll=snap.val();
   const questions=poll.questions||{};
@@ -1044,7 +1075,7 @@ async function loadVoteScreen(pollId, voterName){
       q.options.forEach((opt,i)=>{
         const row=document.createElement('div');
         row.className='option-chk'+(selectedSet.has(i)?' selected':'');
-        row.innerHTML=`<div class="chk-box">${selectedSet.has(i)?'<span class="chk-tick">✓</span>':''}</div><span>${opt}</span>`;
+        row.innerHTML=`<div class="chk-box">${selectedSet.has(i)?'<span class="chk-tick">✓</span>':''}</div><span>${esc(opt)}</span>`;
         row.onclick=()=>{
           if(selectedSet.has(i)){ selectedSet.delete(i); row.classList.remove('selected'); row.querySelector('.chk-box').innerHTML=''; }
           else { selectedSet.add(i); row.classList.add('selected'); row.querySelector('.chk-box').innerHTML='<span class="chk-tick">✓</span>'; }
@@ -1066,7 +1097,7 @@ async function loadVoteScreen(pollId, voterName){
       q.options.forEach((opt,i)=>{
         const btn=document.createElement('button');
         btn.className='option-btn'+(selectedIndex===i?' selected':'');
-        btn.innerHTML=`<span class="opt-letter">${LETTERS[i]}</span>${opt}`;
+        btn.innerHTML=`<span class="opt-letter">${LETTERS[i]}</span>${esc(opt)}`;
         btn.onclick=()=>{ document.querySelectorAll('.option-btn').forEach(b=>b.classList.remove('selected')); btn.classList.add('selected'); selectedIndex=i; answers[qKey]=i; };
         grid.appendChild(btn);
       });
@@ -1098,9 +1129,15 @@ async function loadVoteScreen(pollId, voterName){
         if(Object.keys(updates).length===0) return showToast('Nessuna risposta nuova');
         const btn=document.getElementById('btn-next');
         btn.disabled=true; btn.innerHTML='<span class="spinner"></span>Invio...';
-        await update(ref(db),updates);
-        showToast('Voti inviati! 🎉');
-        setTimeout(()=>loadResultsScreen(pollId),800);
+        try{
+          await update(ref(db),updates);
+          showToast('Voti inviati! 🎉');
+          setTimeout(()=>loadResultsScreen(pollId),800);
+        }catch(e){
+          btn.disabled=false; btn.textContent='Invia tutto ✓';
+          showToast('Errore invio voti: '+e.message);
+          console.error('submitVotes error:',e);
+        }
       }
     });
   }
@@ -1116,8 +1153,11 @@ async function loadResultsScreen(pollId){
   content.innerHTML='<div style="color:var(--muted);padding:2rem 0"><span class="spinner"></span>Caricamento...</div>';
   if(_unsub){ _unsub(); _unsub=null; }
   _unsub=onValue(ref(db,`polls/${pollId}`),(snap)=>{
-    if(!snap.exists()) return;
+    if(!snap.exists()){ content.innerHTML='<div style="color:var(--danger);padding:2rem 0">Sondaggio non trovato o eliminato.</div>'; return; }
     renderResults(content,snap.val(),pollId);
+  },(error)=>{
+    content.innerHTML='<div style="color:var(--danger);padding:2rem 0">Errore caricamento: '+esc(error.message)+'</div>';
+    console.error('loadResultsScreen error:',error);
   });
 }
 window.loadResultsScreen=loadResultsScreen;
@@ -1147,12 +1187,27 @@ function renderResults(content,poll,pollId){
       <button class="btn btn-danger" id="btn-del">Elimina</button>
     </div>`;
 
-  document.getElementById('btn-copy-main').onclick=()=>{ navigator.clipboard.writeText(homeLink); showToast('Link copiato!'); };
+  document.getElementById('btn-copy-main').onclick=()=>{
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(homeLink).then(()=>showToast('Link copiato!')).catch(()=>showToast('Copia manualmente il link'));
+    } else {
+      // Fallback per contesti non-HTTPS
+      const ta=document.createElement('textarea'); ta.value=homeLink; ta.style.position='fixed'; ta.style.opacity='0';
+      document.body.appendChild(ta); ta.select();
+      try{ document.execCommand('copy'); showToast('Link copiato!'); }catch(e){ showToast('Copia manualmente il link'); }
+      document.body.removeChild(ta);
+    }
+  };
   document.getElementById('btn-del').onclick=async()=>{
     if(!confirm('Eliminare questo sondaggio?')) return;
     if(_unsub){_unsub();_unsub=null;}
-    await remove(ref(db,`polls/${pollId}`));
-    showToast('Eliminato'); loadHome();
+    try{
+      await remove(ref(db,`polls/${pollId}`));
+      showToast('Eliminato'); loadHome();
+    }catch(e){
+      showToast('Errore eliminazione: '+e.message);
+      console.error('deletePoll error:',e);
+    }
   };
 
   const tabs=document.getElementById('q-tabs');
@@ -1192,7 +1247,7 @@ function renderQPanel(qKeys,questions,idx){
       Object.keys(votes).forEach(voter=>{
         const v=votes[voter];
         const d=document.createElement('div'); d.className='voter-row';
-        d.innerHTML=`<span style="flex:1;font-weight:600">${voter}</span><span style="color:var(--text);font-size:0.88rem;max-width:65%;text-align:right">${typeof v==='string'?v:JSON.stringify(v)}</span>`;
+        d.innerHTML=`<span style="flex:1;font-weight:600">${esc(voter)}</span><span style="color:var(--text);font-size:0.88rem;max-width:65%;text-align:right">${typeof v==='string'?esc(v):esc(JSON.stringify(v))}</span>`;
         ta.appendChild(d);
       });
     }
@@ -1213,7 +1268,7 @@ function renderQPanel(qKeys,questions,idx){
       const pct=totalTicks>0?Math.round((counts[i]/totalTicks)*100):0;
       const d=document.createElement('div'); d.className='legend-item';
       d.innerHTML=`<div class="legend-dot" style="background:${COLORS[i%COLORS.length]}"></div>
-        <span class="legend-label">${opt}</span>
+        <span class="legend-label">${esc(opt)}</span>
         <span style="color:var(--muted);font-size:0.8rem;margin-right:0.5rem">${counts[i]}</span>
         <span class="legend-pct" style="color:${COLORS[i%COLORS.length]}">${pct}%</span>`;
       leg.appendChild(d);
@@ -1223,11 +1278,11 @@ function renderQPanel(qKeys,questions,idx){
       const v=votes[voter];
       const d=document.createElement('div'); d.className='voter-row';
       if(Array.isArray(v)){
-        const tags=v.map(i=>`<span class="vote-tag" style="background:${COLORS[i%COLORS.length]}22;color:${COLORS[i%COLORS.length]}">${q.options[i]||i}</span>`).join(' ');
-        d.innerHTML=`<span style="flex:1">${voter}</span>${tags}`;
+        const tags=v.map(i=>`<span class="vote-tag" style="background:${COLORS[i%COLORS.length]}22;color:${COLORS[i%COLORS.length]}">${esc(q.options[i]||String(i))}</span>`).join(' ');
+        d.innerHTML=`<span style="flex:1">${esc(voter)}</span>${tags}`;
       } else {
         const color=COLORS[v%COLORS.length];
-        d.innerHTML=`<span style="flex:1">${voter}</span><span class="vote-tag" style="background:${color}22;color:${color}">${q.options[v]||v}</span>`;
+        d.innerHTML=`<span style="flex:1">${esc(voter)}</span><span class="vote-tag" style="background:${color}22;color:${color}">${esc(q.options[v]||String(v))}</span>`;
       }
       vd.appendChild(d);
     });}
@@ -1301,8 +1356,13 @@ function initChat(){
 
 window.clearChat=async function(){
   if(!confirm('Cancellare tutti i messaggi della chat?')) return;
-  await remove(ref(db,'chat'));
-  showToast('Chat pulita!');
+  try{
+    await remove(ref(db,'chat'));
+    showToast('Chat pulita!');
+  }catch(e){
+    showToast('Errore: '+e.message);
+    console.error('clearChat error:',e);
+  }
 };
 
 window.sendChatMsg=async function(){
@@ -1310,8 +1370,13 @@ window.sendChatMsg=async function(){
   const text=(inp?.value||'').trim();
   if(!text) return;
   const name=getVoterName()||'Anonimo';
-  await push(ref(db,'chat'),{name,text,ts:Date.now()});
-  inp.value='';
+  try{
+    await push(ref(db,'chat'),{name,text,ts:Date.now()});
+    inp.value='';
+  }catch(e){
+    showToast('Errore invio: '+e.message);
+    console.error('sendChatMsg error:',e);
+  }
 };
 
 document.addEventListener('keydown',function(e){
@@ -1533,7 +1598,7 @@ function renderCal(){
       dispoNames.slice(0,5).forEach(name=>{
         const parsed=parseDispoStatus(dispoDay[name]);
         const dotColor=DISPO_STATUS_COLORS[parsed.status]||DISPO_STATUS_COLORS.yes;
-        inner+=`<span class="avail-dot" style="background:${dotColor}" title="${name}: ${DISPO_STATUS_LABELS[parsed.status]||'Disponibile'}"></span>`;
+        inner+=`<span class="avail-dot" style="background:${dotColor}" title="${esc(name)}: ${DISPO_STATUS_LABELS[parsed.status]||'Disponibile'}"></span>`;
       });
       if(dispoNames.length>5) inner+=`<span style="font-size:0.5rem;color:var(--muted)">+${dispoNames.length-5}</span>`;
       inner+='</div>';
@@ -1948,7 +2013,7 @@ function updateCellVisual(dk, sMyName){
     dispoNames.slice(0,5).forEach(name=>{
       const parsed=parseDispoStatus(dispoDay[name]);
       const dotColor=DISPO_STATUS_COLORS[parsed.status]||DISPO_STATUS_COLORS.yes;
-      dotsEl.innerHTML+=`<span class="avail-dot" style="background:${dotColor}" title="${name}: ${DISPO_STATUS_LABELS[parsed.status]||'Disponibile'}"></span>`;
+      dotsEl.innerHTML+=`<span class="avail-dot" style="background:${dotColor}" title="${esc(name)}: ${DISPO_STATUS_LABELS[parsed.status]||'Disponibile'}"></span>`;
     });
     if(dispoNames.length>5) dotsEl.innerHTML+=`<span style="font-size:0.5rem;color:var(--muted)">+${dispoNames.length-5}</span>`;
   } else if(dotsEl){
@@ -2016,8 +2081,8 @@ function renderDispoDetail(dateStr){
     if(groups[g.key].length===0) return;
     html+=`<div style="margin-bottom:0.6rem"><div style="font-size:0.9rem;font-family:sans-serif;color:var(--muted);margin-bottom:0.25rem">${g.icon} ${g.label} (${groups[g.key].length})</div><div>`;
     groups[g.key].forEach(p=>{
-      html+=`<span class="avail-person"><span class="avail-legend-dot" style="background:${DISPO_STATUS_COLORS[g.key]}"></span>${p.name}`;
-      if(p.time) html+=`<span style="font-size:0.85rem;color:var(--muted);font-family:sans-serif;margin-left:0.3rem">${p.time}</span>`;
+      html+=`<span class="avail-person"><span class="avail-legend-dot" style="background:${DISPO_STATUS_COLORS[g.key]}"></span>${esc(p.name)}`;
+      if(p.time) html+=`<span style="font-size:0.85rem;color:var(--muted);font-family:sans-serif;margin-left:0.3rem">${esc(p.time)}</span>`;
       html+=`</span>`;
     });
     html+='</div></div>';
@@ -2115,8 +2180,8 @@ function renderEventoList(dateStr){
       if(groups[g.key].length===0) return;
       html+=`<div style="margin-bottom:0.3rem"><span style="font-size:0.85rem;font-family:sans-serif;color:var(--muted)">${g.icon} ${g.label}:</span> `;
       groups[g.key].forEach(p=>{
-        html+=`<span class="avail-person"><span class="avail-legend-dot" style="background:${DISPO_STATUS_COLORS[g.key]}"></span>${p.name}`;
-        if(p.time) html+=`<span style="font-size:0.8rem;color:var(--muted);margin-left:0.2rem">${p.time}</span>`;
+        html+=`<span class="avail-person"><span class="avail-legend-dot" style="background:${DISPO_STATUS_COLORS[g.key]}"></span>${esc(p.name)}`;
+        if(p.time) html+=`<span style="font-size:0.8rem;color:var(--muted);margin-left:0.2rem">${esc(p.time)}</span>`;
         html+=`</span>`;
       });
       html+=`</div>`;
@@ -2131,8 +2196,8 @@ function renderEventoList(dateStr){
       html+=`<div class="evento-item"><div class="evento-color-bar"></div>
         <div class="evento-body">
           <div class="evento-title">${esc(ev.title||'Evento')}</div>
-          <div class="evento-meta">${ev.time?'🕐 '+ev.time:''} · 👤 ${esc(ev.author||'Anonimo')}</div>
-          ${ev.note?`<div class="evento-note">${ev.note.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`:''}
+          <div class="evento-meta">${ev.time?'🕐 '+esc(ev.time):''} · 👤 ${esc(ev.author||'Anonimo')}</div>
+          ${ev.note?`<div class="evento-note">${esc(ev.note)}</div>`:''}
         </div>
         <div style="display:flex;flex-direction:column;gap:0.3rem;position:absolute;top:0.4rem;right:0.4rem"><button class="evento-del" onclick="window.editEvento('${ev.id}')" title="Modifica" style="position:static">✏️</button><button class="evento-del" onclick="window.deleteEvento('${ev.id}')" title="Elimina" style="position:static">✖</button></div>
       </div>`;
@@ -2159,7 +2224,7 @@ function renderUpcoming(){
       const div=document.createElement('div'); div.className='upcoming-evento';
       div.innerHTML=`<div class="upcoming-date-badge">${dayLabel}${holiday?' 🎉':''}</div>
         <div class="upcoming-title">${esc(ev.title||'Evento')}</div>
-        <div class="upcoming-time">${ev.time||''}</div>`;
+        <div class="upcoming-time">${esc(ev.time||'')}</div>`;
       div.onclick=()=>{ calYear=+y; calMonth=+m-1; calMode='eventi'; window.setCalMode('eventi'); renderCal(); selectCalDay(+y,+m-1,+d); };
       el.appendChild(div);
     });
@@ -2265,8 +2330,13 @@ window.cancelEventoForm=function(){
 
 window.deleteEvento=async function(id){
   if(!confirm('Eliminare questo evento?')) return;
-  await remove(ref(db,`eventi/${id}`));
-  showToast('Evento eliminato');
+  try{
+    await remove(ref(db,`eventi/${id}`));
+    showToast('Evento eliminato');
+  }catch(e){
+    showToast('Errore: '+e.message);
+    console.error('deleteEvento error:',e);
+  }
 };
 
 // ── DISPONIBILITÀ RICORRENTE ─────────────────────────
@@ -2427,10 +2497,10 @@ function renderBacheca(data){
     div.innerHTML=`
       <div class="bacheca-author">
         <span>👤</span>
-        <span class="bacheca-author-name">${post.author||'Anonimo'}</span>
+        <span class="bacheca-author-name">${esc(post.author||'Anonimo')}</span>
         <span class="bacheca-time">${formatBachecaTime(post.ts)}</span>
       </div>
-      <div class="bacheca-text">${post.text.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+      <div class="bacheca-text">${esc(post.text)}</div>
       <button class="bacheca-del" onclick="window.deleteBachecaPost('${id}')" title="Elimina">✖</button>`;
     el.appendChild(div);
   });
@@ -2441,15 +2511,25 @@ window.postBacheca=async function(){
   const text=(inp?.value||'').trim();
   if(!text) return showToast('Scrivi qualcosa!');
   const author=getVoterName()||'Anonimo';
-  await push(ref(db,'bacheca'),{author,text,ts:Date.now()});
-  inp.value='';
-  showToast('Post pubblicato! 📌');
+  try{
+    await push(ref(db,'bacheca'),{author,text,ts:Date.now()});
+    inp.value='';
+    showToast('Post pubblicato! 📌');
+  }catch(e){
+    showToast('Errore pubblicazione: '+e.message);
+    console.error('postBacheca error:',e);
+  }
 };
 
 window.deleteBachecaPost=async function(id){
   if(!confirm('Eliminare questo post?')) return;
-  await remove(ref(db,`bacheca/${id}`));
-  showToast('Post eliminato');
+  try{
+    await remove(ref(db,`bacheca/${id}`));
+    showToast('Post eliminato');
+  }catch(e){
+    showToast('Errore eliminazione: '+e.message);
+    console.error('deleteBachecaPost error:',e);
+  }
 };
 
 document.addEventListener('keydown',function(e){
@@ -2470,7 +2550,6 @@ const _badgeSections = {
   'screen-bacheca': {key:'_seen_bacheca', badgeId:'hub-bacheca-badge', count:0},
   'screen-giochi': {key:'_seen_giochi', badgeId:'hub-giochi-badge', count:0},
   'screen-lista': {key:'_seen_lista', badgeId:'hub-lista-badge', count:0},
-  'screen-home': {key:'_seen_polls', badgeId:'hub-poll-badge', count:0},
 };
 
 function _getSeenCount(key){ return parseInt(localStorage.getItem(key)||'0',10); }
@@ -2542,19 +2621,19 @@ function renderCustomGiochi(data){
     div.className='gioco-item';
     div.innerHTML=`
       <div class="gioco-header" onclick="toggleGioco(this)">
-        <span class="gioco-icon">${g.icon||'🎮'}</span>
+        <span class="gioco-icon">${esc(g.icon||'🎮')}</span>
         <div class="gioco-info">
-          <div class="gioco-title">${(g.title||'Gioco').replace(/</g,'&lt;')}</div>
-          <div class="gioco-desc">${(g.desc||'').replace(/</g,'&lt;')}</div>
+          <div class="gioco-title">${esc(g.title||'Gioco')}</div>
+          <div class="gioco-desc">${esc(g.desc||'')}</div>
         </div>
         <span class="gioco-arrow">▶</span>
       </div>
       <div class="gioco-rules">
         <div class="gioco-rules-inner">
-          ${g.tags?`<div class="gioco-tags">${g.tags.split(',').map(t=>`<span class="gioco-tag">${t.trim().replace(/</g,'&lt;')}</span>`).join('')}</div>`:''}
+          ${g.tags?`<div class="gioco-tags">${g.tags.split(',').map(t=>`<span class="gioco-tag">${esc(t.trim())}</span>`).join('')}</div>`:''}
           <h3>Come si gioca</h3>
-          <p style="white-space:pre-wrap">${(g.rules||'Nessuna regola specificata.').replace(/</g,'&lt;')}</p>
-          <div style="margin-top:0.8rem;font-size:0.85rem;color:var(--muted);font-family:sans-serif">Aggiunto da ${(g.author||'Anonimo').replace(/</g,'&lt;')}</div>
+          <p style="white-space:pre-wrap">${esc(g.rules||'Nessuna regola specificata.')}</p>
+          <div style="margin-top:0.8rem;font-size:0.85rem;color:var(--muted);font-family:sans-serif">Aggiunto da ${esc(g.author||'Anonimo')}</div>
           <div style="margin-top:0.5rem"><button class="btn btn-danger" style="font-size:0.85rem;padding:0.3rem 0.7rem" onclick="event.stopPropagation();window.deleteGioco('${id}')">🗑 Elimina</button></div>
         </div>
       </div>`;
@@ -2607,8 +2686,13 @@ window.submitGioco=async function(){
 
 window.deleteGioco=async function(id){
   if(!confirm('Eliminare questo gioco?')) return;
-  await remove(ref(db,`giochi/${id}`));
-  showToast('Gioco eliminato');
+  try{
+    await remove(ref(db,`giochi/${id}`));
+    showToast('Gioco eliminato');
+  }catch(e){
+    showToast('Errore: '+e.message);
+    console.error('deleteGioco error:',e);
+  }
 };
 
 // ── CHI PORTA COSA ──────────────────────────────────
@@ -2677,11 +2761,16 @@ window.submitLista=async function(){
   rawItems.split('\n').filter(l=>l.trim()).forEach((name,i)=>{
     items[`i${i}`]={name:name.trim(),who:'',order:i};
   });
-  await push(ref(db,'liste'),{title,author,ts:Date.now(),items});
-  document.getElementById('lista-title').value='';
-  document.getElementById('lista-items').value='';
-  document.getElementById('lista-form-wrap').style.display='none';
-  showToast('Lista creata! 🗳');
+  try{
+    await push(ref(db,'liste'),{title,author,ts:Date.now(),items});
+    document.getElementById('lista-title').value='';
+    document.getElementById('lista-items').value='';
+    document.getElementById('lista-form-wrap').style.display='none';
+    showToast('Lista creata! 🗳');
+  }catch(e){
+    showToast('Errore creazione: '+e.message);
+    console.error('submitLista error:',e);
+  }
 };
 
 window.toggleListaItem=async function(listaId,itemKey){
@@ -2690,7 +2779,12 @@ window.toggleListaItem=async function(listaId,itemKey){
   const item=_listaCache[listaId]?.items?.[itemKey];
   if(!item) return;
   const newWho=item.who?'':myName;
-  await update(ref(db,`liste/${listaId}/items/${itemKey}`),{who:newWho});
+  try{
+    await update(ref(db,`liste/${listaId}/items/${itemKey}`),{who:newWho});
+  }catch(e){
+    showToast('Errore: '+e.message);
+    console.error('toggleListaItem error:',e);
+  }
 };
 
 window.addListaItem=async function(listaId){
@@ -2700,14 +2794,24 @@ window.addListaItem=async function(listaId){
   const items=_listaCache[listaId]?.items||{};
   const order=Object.keys(items).length;
   const newKey='i'+Date.now();
-  await update(ref(db,`liste/${listaId}/items`),{[newKey]:{name,who:'',order}});
-  inp.value='';
+  try{
+    await update(ref(db,`liste/${listaId}/items`),{[newKey]:{name,who:'',order}});
+    inp.value='';
+  }catch(e){
+    showToast('Errore: '+e.message);
+    console.error('addListaItem error:',e);
+  }
 };
 
 window.deleteLista=async function(id){
   if(!confirm('Eliminare questa lista?')) return;
-  await remove(ref(db,`liste/${id}`));
-  showToast('Lista eliminata');
+  try{
+    await remove(ref(db,`liste/${id}`));
+    showToast('Lista eliminata');
+  }catch(e){
+    showToast('Errore: '+e.message);
+    console.error('deleteLista error:',e);
+  }
 };
 
 // ── RIEPILOGO DISPONIBILITÀ ─────────────────────────
@@ -2854,8 +2958,8 @@ window.spinWheel=function(){
 
 // Badge watcher: LISTA
 onValue(ref(db,'liste'),(snap)=>{
-  _listaCache=snap.val()||{};
-  const count=Object.keys(_listaCache).length;
+  const data=snap.val()||{};
+  const count=Object.keys(data).length;
   _updateHubBadge('screen-lista',count);
 });
 
@@ -2940,10 +3044,7 @@ document.addEventListener('visibilitychange', function(){
   if(document.hidden){ if(playing){ music.pause(); } }
   else { if(playing){ music.play().catch(()=>{}); } }
 });
-document.addEventListener('click', function startOnce(){
-  if(!playing){ music.play().catch(()=>{}); btn.textContent='⏸️'; playing=true; window._musicPlaying=true; }
-  document.removeEventListener('click', startOnce);
-}, {once:true});
+// Musica non parte automaticamente — l'utente preme play dal pannello impostazioni
 </script>
 
 <!-- Click Sounds -->

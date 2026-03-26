@@ -1,5 +1,5 @@
-const CACHE = 'after-pasquetta-v24';
-const ASSETS = ['./', './index.html', './style.css', './manifest.json'];
+const CACHE = 'after-pasquetta-v25';
+const ASSETS = ['./', './index.html', './style.css', './manifest.json', './icon-192.png'];
 
 // Ricevi il messaggio dall'app per attivarsi subito
 self.addEventListener('message', e => {
@@ -23,6 +23,13 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
+
+  // Non cachare mai chiamate Firebase / API esterne
+  if(url.hostname.includes('firebasedatabase.app') ||
+     url.hostname.includes('firebaseio.com') ||
+     url.hostname.includes('googleapis.com') && url.pathname.includes('/v1')){
+    return;
+  }
 
   // Navigazione o index.html: sempre network-first con cache: no-store
   const isNav = e.request.mode === 'navigate';
