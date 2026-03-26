@@ -387,3 +387,7 @@ body.dark-mode .cal-cell.holiday::before {background:#ff6b6b;}
 body.dark-mode .dispo-status-btn.active-yes {background:rgba(46,196,182,0.25);}
 body.dark-mode .dispo-status-btn.active-maybe {background:rgba(255,193,7,0.2);}
 body.dark-mode .dispo-status-btn.active-no {background:rgba(231,76,60,0.2);}
+
+/* RECURRING DISPO */
+.rec-day-btn.active {background:var(--accent);box-shadow:inset 2px 2px 0px rgba(0,0,0,0.1);transform:translate(2px,2px);}
+.rec-status-btn.active {background:var(--accent);box-shadow:inset 2px 2px 0px rgba(0,0,0,0.1);transform:translate(2px,2px);}

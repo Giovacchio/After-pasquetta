@@ -154,10 +154,65 @@
       <div id="cal-holidays-legend" style="margin-top:0.6rem;display:none"></div>
       <div id="cal-dispo-hint" style="display:none;margin-top:0.8rem;font-size:0.9rem;color:var(--muted);font-family:sans-serif;text-align:center;line-height:1.5">
         ☝️ Scegli lo stato sopra, poi tocca per applicarlo<br>📱 Tieni premuto poi trascina per più giorni · ~1.5s = orario
+        <div style="margin-top:0.7rem"><button class="btn btn-secondary" style="font-size:0.95rem;padding:0.4rem 0.9rem" onclick="window.openRecurringDispo()">🔁 Disponibilità ricorrente</button></div>
       </div>
     </div>
 
-    <!-- DISPONIBILITA PANNELLO (solo lista persone) -->
+    <!-- OVERLAY DISPONIBILITÀ RICORRENTE -->
+    <div id="recurring-dispo-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1200;align-items:center;justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
+      <div style="background:var(--card);border:2px solid var(--border);border-radius:6px;padding:1.5rem;width:min(380px,92vw);box-shadow:8px 8px 0px rgba(0,0,0,0.2);max-height:90vh;overflow-y:auto;">
+        <div class="section-title" style="margin-bottom:1rem">🔁 Disponibilità ricorrente</div>
+
+        <label style="margin-bottom:0.3rem">Stato</label>
+        <div style="display:flex;gap:0.4rem;margin-bottom:1rem">
+          <button class="btn btn-secondary rec-status-btn active" data-status="yes" onclick="window._recStatus='yes';document.querySelectorAll('.rec-status-btn').forEach(b=>b.classList.remove('active'));this.classList.add('active')" style="flex:1;font-size:0.95rem;padding:0.4rem">🟢 Disponibile</button>
+          <button class="btn btn-secondary rec-status-btn" data-status="maybe" onclick="window._recStatus='maybe';document.querySelectorAll('.rec-status-btn').forEach(b=>b.classList.remove('active'));this.classList.add('active')" style="flex:1;font-size:0.95rem;padding:0.4rem">🟡 Forse</button>
+          <button class="btn btn-secondary rec-status-btn" data-status="no" onclick="window._recStatus='no';document.querySelectorAll('.rec-status-btn').forEach(b=>b.classList.remove('active'));this.classList.add('active')" style="flex:1;font-size:0.95rem;padding:0.4rem">🔴 No</button>
+        </div>
+
+        <label style="margin-bottom:0.3rem">Giorni della settimana</label>
+        <div style="display:flex;gap:0.3rem;flex-wrap:wrap;margin-bottom:1rem" id="rec-days-wrap">
+          <button class="btn btn-secondary rec-day-btn" data-day="1" onclick="this.classList.toggle('active')" style="padding:0.35rem 0.6rem;font-size:1rem">Lu</button>
+          <button class="btn btn-secondary rec-day-btn" data-day="2" onclick="this.classList.toggle('active')" style="padding:0.35rem 0.6rem;font-size:1rem">Ma</button>
+          <button class="btn btn-secondary rec-day-btn" data-day="3" onclick="this.classList.toggle('active')" style="padding:0.35rem 0.6rem;font-size:1rem">Me</button>
+          <button class="btn btn-secondary rec-day-btn" data-day="4" onclick="this.classList.toggle('active')" style="padding:0.35rem 0.6rem;font-size:1rem">Gi</button>
+          <button class="btn btn-secondary rec-day-btn" data-day="5" onclick="this.classList.toggle('active')" style="padding:0.35rem 0.6rem;font-size:1rem">Ve</button>
+          <button class="btn btn-secondary rec-day-btn" data-day="6" onclick="this.classList.toggle('active')" style="padding:0.35rem 0.6rem;font-size:1rem">Sa</button>
+          <button class="btn btn-secondary rec-day-btn" data-day="0" onclick="this.classList.toggle('active')" style="padding:0.35rem 0.6rem;font-size:1rem">Do</button>
+        </div>
+
+        <label style="margin-bottom:0.3rem">Da — A</label>
+        <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:1rem">
+          <input type="date" id="rec-from-date" style="flex:1;background:var(--bg2);border:2px solid var(--border);border-radius:4px;color:var(--text);font-family:'VT323',monospace;font-size:1.1rem;padding:0.4rem;outline:none;">
+          <span style="font-family:'VT323',monospace;font-size:1.2rem">→</span>
+          <input type="date" id="rec-to-date" style="flex:1;background:var(--bg2);border:2px solid var(--border);border-radius:4px;color:var(--text);font-family:'VT323',monospace;font-size:1.1rem;padding:0.4rem;outline:none;">
+        </div>
+
+        <label style="margin-bottom:0.3rem">Orario (opzionale)</label>
+        <div style="display:flex;gap:0.4rem;align-items:center;margin-bottom:0.3rem">
+          <label style="display:flex;align-items:center;gap:0.4rem;margin:0;text-transform:none;font-size:0.95rem;cursor:pointer">
+            <input type="checkbox" id="rec-time-check" onchange="document.getElementById('rec-time-fields').style.display=this.checked?'flex':'none'" style="accent-color:var(--accent);width:16px;height:16px;"> Imposta orario
+          </label>
+        </div>
+        <div id="rec-time-fields" style="display:none;gap:0.4rem;align-items:center;flex-wrap:wrap;margin-bottom:1rem">
+          <span style="font-size:0.95rem;font-family:'VT323',monospace;color:var(--muted)">Dalle</span>
+          <select id="rec-from-h" style="background:var(--bg2);border:2px solid var(--border);border-radius:4px;color:var(--text);font-family:'VT323',monospace;font-size:1.1rem;padding:0.35rem;outline:none;"></select>
+          <span style="font-family:'VT323',monospace">:</span>
+          <select id="rec-from-m" style="background:var(--bg2);border:2px solid var(--border);border-radius:4px;color:var(--text);font-family:'VT323',monospace;font-size:1.1rem;padding:0.35rem;outline:none;"></select>
+          <span style="font-size:0.95rem;font-family:'VT323',monospace;color:var(--muted);margin-left:0.3rem">alle</span>
+          <select id="rec-to-h" style="background:var(--bg2);border:2px solid var(--border);border-radius:4px;color:var(--text);font-family:'VT323',monospace;font-size:1.1rem;padding:0.35rem;outline:none;"></select>
+          <span style="font-family:'VT323',monospace">:</span>
+          <select id="rec-to-m" style="background:var(--bg2);border:2px solid var(--border);border-radius:4px;color:var(--text);font-family:'VT323',monospace;font-size:1.1rem;padding:0.35rem;outline:none;"></select>
+        </div>
+
+        <div id="rec-preview" style="font-size:0.9rem;color:var(--muted);font-family:sans-serif;margin-bottom:1rem;min-height:1.2rem"></div>
+
+        <div class="btn-row">
+          <button class="btn btn-primary" id="btn-apply-recurring" onclick="window.applyRecurringDispo()" style="flex:1">✅ Applica</button>
+          <button class="btn btn-secondary" onclick="document.getElementById('recurring-dispo-overlay').style.display='none'">Chiudi</button>
+        </div>
+      </div>
+    </div>
     <div id="dispo-day-detail" style="display:none">
       <div class="card">
         <div class="section-title" id="dispo-day-title">Disponibilità</div>
@@ -1339,6 +1394,7 @@ window.setCalMode=function(mode){
   document.getElementById('eventi-day-list').style.display = (mode==='eventi' && calSelectedDate)?'block':'none';
   document.getElementById('dispo-day-detail').style.display = (mode==='dispo' && calSelectedDate)?'block':'none';
   document.getElementById('dispo-time-overlay').style.display='none';
+  document.getElementById('recurring-dispo-overlay').style.display='none';
   renderCal();
   if(calSelectedDate){
     if(mode==='eventi') renderEventoList(calSelectedDate);
@@ -2035,8 +2091,8 @@ function renderUpcoming(){
   });
 }
 
-window.calPrev=function(){ calMonth--; if(calMonth<0){calMonth=11;calYear--;} calSelectedDate=null; _holidaysCache={..._holidaysCache,...getItalianHolidays(calYear)}; renderCal(); document.getElementById('eventi-day-list').style.display='none'; document.getElementById('eventi-form-wrap').style.display='none'; document.getElementById('dispo-day-detail').style.display='none'; document.getElementById('dispo-time-overlay').style.display='none'; };
-window.calNext=function(){ calMonth++; if(calMonth>11){calMonth=0;calYear++;} calSelectedDate=null; _holidaysCache={..._holidaysCache,...getItalianHolidays(calYear)}; renderCal(); document.getElementById('eventi-day-list').style.display='none'; document.getElementById('eventi-form-wrap').style.display='none'; document.getElementById('dispo-day-detail').style.display='none'; document.getElementById('dispo-time-overlay').style.display='none'; };
+window.calPrev=function(){ calMonth--; if(calMonth<0){calMonth=11;calYear--;} calSelectedDate=null; _holidaysCache={..._holidaysCache,...getItalianHolidays(calYear)}; renderCal(); document.getElementById('eventi-day-list').style.display='none'; document.getElementById('eventi-form-wrap').style.display='none'; document.getElementById('dispo-day-detail').style.display='none'; document.getElementById('dispo-time-overlay').style.display='none'; document.getElementById('recurring-dispo-overlay').style.display='none'; };
+window.calNext=function(){ calMonth++; if(calMonth>11){calMonth=0;calYear++;} calSelectedDate=null; _holidaysCache={..._holidaysCache,...getItalianHolidays(calYear)}; renderCal(); document.getElementById('eventi-day-list').style.display='none'; document.getElementById('eventi-form-wrap').style.display='none'; document.getElementById('dispo-day-detail').style.display='none'; document.getElementById('dispo-time-overlay').style.display='none'; document.getElementById('recurring-dispo-overlay').style.display='none'; };
 
 let _editingEventoId = null;
 
@@ -2136,6 +2192,125 @@ window.deleteEvento=async function(id){
   if(!confirm('Eliminare questo evento?')) return;
   await remove(ref(db,`eventi/${id}`));
   showToast('Evento eliminato');
+};
+
+// ── DISPONIBILITÀ RICORRENTE ─────────────────────────
+window._recStatus = 'yes';
+
+window.openRecurringDispo=function(){
+  const myName=getVoterName();
+  if(!myName) return showToast('Torna alla Hub per inserire il tuo nome!');
+
+  // Reset form
+  window._recStatus='yes';
+  document.querySelectorAll('.rec-status-btn').forEach((b,i)=>b.classList.toggle('active',i===0));
+  document.querySelectorAll('.rec-day-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('rec-time-check').checked=false;
+  document.getElementById('rec-time-fields').style.display='none';
+  document.getElementById('rec-preview').textContent='';
+
+  // Default date range: today → +3 months
+  const today=new Date();
+  const future=new Date(today); future.setMonth(future.getMonth()+3);
+  document.getElementById('rec-from-date').value=today.toISOString().split('T')[0];
+  document.getElementById('rec-to-date').value=future.toISOString().split('T')[0];
+
+  // Populate time selects
+  populateTimeSelects('rec-from-h','rec-from-m',15,0);
+  populateTimeSelects('rec-to-h','rec-to-m',23,0);
+
+  // Live preview
+  updateRecPreview();
+  ['rec-from-date','rec-to-date'].forEach(id=>{
+    document.getElementById(id).onchange=updateRecPreview;
+  });
+
+  document.getElementById('recurring-dispo-overlay').style.display='flex';
+};
+
+function updateRecPreview(){
+  const days=[...document.querySelectorAll('.rec-day-btn.active')];
+  const from=document.getElementById('rec-from-date').value;
+  const to=document.getElementById('rec-to-date').value;
+  const el=document.getElementById('rec-preview');
+  if(!from||!to||days.length===0){ el.textContent='Seleziona almeno un giorno e le date.'; return; }
+  const count=countRecurringDays(from,to,days.map(d=>parseInt(d.dataset.day)));
+  const dayNames=days.map(d=>d.textContent).join(', ');
+  el.textContent=`${count} giorni verranno impostati (${dayNames})`;
+}
+
+// Attach live preview to day buttons
+document.addEventListener('click',function(e){
+  if(e.target.classList.contains('rec-day-btn')) setTimeout(updateRecPreview,10);
+});
+
+function countRecurringDays(fromStr,toStr,dayNums){
+  const from=new Date(fromStr); const to=new Date(toStr);
+  let count=0;
+  const d=new Date(from);
+  while(d<=to){
+    if(dayNums.includes(d.getDay())) count++;
+    d.setDate(d.getDate()+1);
+  }
+  return count;
+}
+
+window.applyRecurringDispo=async function(){
+  const myName=getVoterName();
+  if(!myName) return showToast('Inserisci il tuo nome nella Hub');
+  const sMyName=sanitize(myName);
+  const status=window._recStatus||'yes';
+  const selectedDays=[...document.querySelectorAll('.rec-day-btn.active')].map(b=>parseInt(b.dataset.day));
+  const fromStr=document.getElementById('rec-from-date').value;
+  const toStr=document.getElementById('rec-to-date').value;
+
+  if(selectedDays.length===0) return showToast('Seleziona almeno un giorno della settimana');
+  if(!fromStr||!toStr) return showToast('Seleziona le date di inizio e fine');
+  if(fromStr>toStr) return showToast('La data di fine deve essere dopo quella di inizio');
+
+  // Build time string if enabled
+  let timeStr='';
+  if(document.getElementById('rec-time-check').checked){
+    const fh=document.getElementById('rec-from-h').value;
+    const fm=document.getElementById('rec-from-m').value;
+    const th=document.getElementById('rec-to-h').value;
+    const tm=document.getElementById('rec-to-m').value;
+    timeStr=`${fh}:${fm}-${th}:${tm}`;
+  }
+
+  const val=timeStr?`${status}|${timeStr}`:status;
+
+  // Collect all matching dates
+  const from=new Date(fromStr); const to=new Date(toStr);
+  const updates={};
+  const d=new Date(from);
+  let count=0;
+  while(d<=to){
+    if(selectedDays.includes(d.getDay())){
+      const k=dateKey(d.getFullYear(),d.getMonth(),d.getDate());
+      updates[`disponibilita/${k}/${sMyName}`]=val;
+      // Update local cache
+      if(!_dispoCache[k]) _dispoCache[k]={};
+      _dispoCache[k][sMyName]=val;
+      count++;
+    }
+    d.setDate(d.getDate()+1);
+  }
+
+  if(count===0) return showToast('Nessun giorno corrisponde alla selezione');
+
+  const btn=document.getElementById('btn-apply-recurring');
+  btn.disabled=true; btn.innerHTML='<span class="spinner"></span>Applicazione...';
+  try{
+    await update(ref(db),updates);
+    renderCal();
+    showToast(`Fatto! ${count} giorni impostati 🔁`);
+    document.getElementById('recurring-dispo-overlay').style.display='none';
+  }catch(e){
+    showToast('Errore: '+e.message);
+  }finally{
+    btn.disabled=false; btn.textContent='✅ Applica';
+  }
 };
 
 // Init eventi quando si entra nella schermata
