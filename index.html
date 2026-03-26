@@ -49,6 +49,22 @@
         <span class="hub-tile-sub">Giochi di gruppo</span>
         <div class="hub-tile-badge" id="hub-giochi-badge">0</div>
       </div>
+      <div class="hub-tile" onclick="goTo('screen-lista')">
+        <span class="hub-tile-icon">🗳</span>
+        <span class="hub-tile-label">Chi porta cosa</span>
+        <span class="hub-tile-sub">Organizza cibo e materiale</span>
+        <div class="hub-tile-badge" id="hub-lista-badge">0</div>
+      </div>
+      <div class="hub-tile" onclick="goTo('screen-riepilogo')">
+        <span class="hub-tile-icon">📊</span>
+        <span class="hub-tile-label">Best Day</span>
+        <span class="hub-tile-sub">Miglior giorno per uscire</span>
+      </div>
+      <div class="hub-tile" onclick="goTo('screen-ruota')">
+        <span class="hub-tile-icon">🎡</span>
+        <span class="hub-tile-label">Ruota</span>
+        <span class="hub-tile-sub">Decidi a caso!</span>
+      </div>
     </div>
 
     <!-- CHAT IN HUB -->
@@ -331,6 +347,65 @@
     </div>
   </div>
 
+  <!-- CHI PORTA COSA -->
+  <div id="screen-lista" class="screen">
+    <div class="topbar">
+      <div><h1>🗳 Chi porta cosa</h1><p class="subtitle">Organizza cibo, bevande e materiale</p></div>
+      <button class="btn btn-secondary" onclick="goTo('screen-hub')">← Hub</button>
+    </div>
+    <div id="lista-events-container"><div style="color:var(--muted)"><span class="spinner"></span>Caricamento...</div></div>
+    <div style="margin-top:1rem">
+      <button class="btn btn-primary" style="width:100%" onclick="window.openListaForm()">+ Nuova lista</button>
+      <div id="lista-form-wrap" style="display:none;margin-top:1rem">
+        <div class="card">
+          <div class="section-title" style="margin-bottom:1rem">Nuova lista</div>
+          <label>Titolo (es. "Grigliatona sabato")</label>
+          <input type="text" id="lista-title" placeholder="Per quale occasione?" style="margin-bottom:0.8rem">
+          <label>Elementi (uno per riga)</label>
+          <textarea id="lista-items" placeholder="Birre&#10;Carbonella&#10;Piatti di plastica&#10;Casse bluetooth" style="margin-bottom:0.8rem;min-height:120px"></textarea>
+          <div class="btn-row">
+            <button class="btn btn-primary" onclick="window.submitLista()">✅ Crea lista</button>
+            <button class="btn btn-secondary" onclick="document.getElementById('lista-form-wrap').style.display='none'">Annulla</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIEPILOGO DISPONIBILITA -->
+  <div id="screen-riepilogo" class="screen">
+    <div class="topbar">
+      <div><h1>📊 Best Day</h1><p class="subtitle">Trova il miglior giorno per uscire</p></div>
+      <button class="btn btn-secondary" onclick="goTo('screen-hub')">← Hub</button>
+    </div>
+    <div class="card">
+      <label style="margin-bottom:0.3rem">Prossimi giorni da analizzare</label>
+      <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:1rem">
+        <input type="range" id="riepilogo-range" min="7" max="60" value="14" oninput="document.getElementById('riepilogo-range-label').textContent=this.value+' giorni';window.renderRiepilogo&&renderRiepilogo()" style="flex:1;accent-color:var(--accent)">
+        <span id="riepilogo-range-label" style="font-family:'VT323',monospace;font-size:1.2rem;min-width:70px;text-align:right">14 giorni</span>
+      </div>
+    </div>
+    <div id="riepilogo-container"><div style="color:var(--muted)">Carica la sezione Eventi almeno una volta per analizzare i dati.</div></div>
+  </div>
+
+  <!-- RUOTA DELLA FORTUNA -->
+  <div id="screen-ruota" class="screen">
+    <div class="topbar">
+      <div><h1>🎡 Ruota della fortuna</h1><p class="subtitle">Lascia decidere il destino!</p></div>
+      <button class="btn btn-secondary" onclick="goTo('screen-hub')">← Hub</button>
+    </div>
+    <div class="card">
+      <label>Opzioni (una per riga)</label>
+      <textarea id="ruota-options" placeholder="Pizza&#10;Sushi&#10;Kebab&#10;Hamburger&#10;Cinese" style="margin-bottom:0.8rem;min-height:100px"></textarea>
+      <button class="btn btn-primary btn-full" onclick="window.spinWheel()">🎡 Gira la ruota!</button>
+    </div>
+    <div style="display:flex;justify-content:center;margin:1.5rem 0;position:relative">
+      <div style="position:absolute;top:-12px;left:50%;transform:translateX(-50%);font-size:1.8rem;z-index:2;filter:drop-shadow(2px 2px 0px var(--border))">▼</div>
+      <canvas id="ruota-canvas" width="300" height="300" style="max-width:300px;border-radius:50%;border:3px solid var(--border);box-shadow:4px 4px 0px var(--border)"></canvas>
+    </div>
+    <div id="ruota-result" style="text-align:center;font-family:'VT323',monospace;font-size:2rem;color:var(--text);min-height:2.5rem"></div>
+  </div>
+
 </div>
 <div class="update-banner" id="update-banner">
   <span class="update-banner-text">🆕 Aggiornamento disponibile!</span>
@@ -424,7 +499,7 @@ function showToast(msg){ const t=document.getElementById('toast'); t.textContent
 function goTo(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); document.getElementById(id).classList.add('active'); window.scrollTo(0,0);
   // Mostra settings solo in hub, home e bacheca
   const settingsBtn=document.getElementById('settings-btn');
-  const showSettings = ['screen-hub','screen-home','screen-bacheca','screen-eventi','screen-giochi'].includes(id);
+  const showSettings = ['screen-hub','screen-home','screen-bacheca','screen-eventi','screen-giochi','screen-lista','screen-riepilogo','screen-ruota'].includes(id);
   if(settingsBtn) settingsBtn.style.display = showSettings ? '' : 'none';
   // Badge gattino: visibile solo fuori dalla home se ci sono poll pending
   if(window._refreshBadgeDisplay) window._refreshBadgeDisplay();
@@ -2319,6 +2394,9 @@ window.goTo = function(id){
   _origGoTo(id);
   if(id==='screen-eventi') initEventi();
   if(id==='screen-giochi') initGiochi();
+  if(id==='screen-lista') initLista();
+  if(id==='screen-riepilogo') renderRiepilogo();
+  if(id==='screen-ruota') drawWheel();
 };
 
 // ── BACHECA ───────────────────────────────────────────
@@ -2391,6 +2469,7 @@ const _badgeSections = {
   'screen-eventi': {key:'_seen_eventi', badgeId:'hub-eventi-badge', count:0},
   'screen-bacheca': {key:'_seen_bacheca', badgeId:'hub-bacheca-badge', count:0},
   'screen-giochi': {key:'_seen_giochi', badgeId:'hub-giochi-badge', count:0},
+  'screen-lista': {key:'_seen_lista', badgeId:'hub-lista-badge', count:0},
   'screen-home': {key:'_seen_polls', badgeId:'hub-poll-badge', count:0},
 };
 
@@ -2531,6 +2610,257 @@ window.deleteGioco=async function(id){
   await remove(ref(db,`giochi/${id}`));
   showToast('Gioco eliminato');
 };
+
+// ── CHI PORTA COSA ──────────────────────────────────
+let _listaUnsub=null;
+let _listaCache={};
+
+function initLista(){
+  if(_listaUnsub) return;
+  _listaUnsub=onValue(ref(db,'liste'),(snap)=>{
+    _listaCache=snap.val()||{};
+    renderListe();
+    const count=Object.keys(_listaCache).length;
+    _updateHubBadge('screen-lista',count);
+  });
+}
+
+function renderListe(){
+  const el=document.getElementById('lista-events-container');
+  if(!el) return;
+  const entries=Object.entries(_listaCache).sort((a,b)=>(b[1].ts||0)-(a[1].ts||0));
+  if(entries.length===0){ el.innerHTML='<div class="empty-state"><div style="font-size:2.5rem;margin-bottom:0.8rem">🗳</div>Nessuna lista ancora.<br>Creane una!</div>'; return; }
+  const myName=getVoterName();
+  el.innerHTML='';
+  entries.forEach(([id,lista])=>{
+    const div=document.createElement('div'); div.className='card'; div.style.marginBottom='1rem';
+    const items=lista.items||{};
+    const itemKeys=Object.keys(items).sort((a,b)=>(items[a].order||0)-(items[b].order||0));
+    const claimed=itemKeys.filter(k=>items[k].who).length;
+    let itemsHtml=itemKeys.map(k=>{
+      const it=items[k];
+      const isClaimed=!!it.who;
+      const isMyItem=it.who===myName;
+      return `<div style="display:flex;align-items:center;gap:0.6rem;padding:0.4rem 0;border-bottom:1px dashed var(--bg2)">
+        <button onclick="window.toggleListaItem('${id}','${k}')" style="background:${isClaimed?'var(--accent)':'var(--bg2)'};border:2px solid var(--border);border-radius:4px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1rem;flex-shrink:0">${isClaimed?'✓':''}</button>
+        <span style="flex:1;${isClaimed?'text-decoration:line-through;color:var(--muted)':''}">${esc(it.name||'')}</span>
+        ${isClaimed?`<span style="font-size:0.85rem;color:var(--muted);font-family:sans-serif">👤 ${esc(it.who)}</span>`:''}
+      </div>`;
+    }).join('');
+    div.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.8rem">
+      <div><div class="section-title">${esc(lista.title||'Lista')}</div>
+      <div style="font-size:0.85rem;color:var(--muted);font-family:sans-serif">${claimed}/${itemKeys.length} assegnati · da ${esc(lista.author||'Anonimo')}</div></div>
+      <button class="evento-del" onclick="window.deleteLista('${id}')" title="Elimina" style="position:static">✖</button>
+    </div>
+    <div>${itemsHtml}</div>
+    <div style="display:flex;gap:0.4rem;margin-top:0.8rem">
+      <input type="text" id="add-item-${id}" placeholder="Aggiungi elemento..." style="flex:1;font-size:1rem;padding:0.4rem 0.7rem">
+      <button class="btn btn-secondary" style="font-size:0.9rem;padding:0.3rem 0.7rem" onclick="window.addListaItem('${id}')">+</button>
+    </div>`;
+    el.appendChild(div);
+  });
+}
+
+window.openListaForm=function(){
+  const w=document.getElementById('lista-form-wrap');
+  w.style.display=w.style.display==='none'?'block':'none';
+  if(w.style.display==='block') document.getElementById('lista-title').focus();
+};
+
+window.submitLista=async function(){
+  const title=document.getElementById('lista-title').value.trim();
+  const rawItems=document.getElementById('lista-items').value.trim();
+  if(!title) return showToast('Inserisci un titolo');
+  if(!rawItems) return showToast('Inserisci almeno un elemento');
+  const author=getVoterName()||'Anonimo';
+  const items={};
+  rawItems.split('\n').filter(l=>l.trim()).forEach((name,i)=>{
+    items[`i${i}`]={name:name.trim(),who:'',order:i};
+  });
+  await push(ref(db,'liste'),{title,author,ts:Date.now(),items});
+  document.getElementById('lista-title').value='';
+  document.getElementById('lista-items').value='';
+  document.getElementById('lista-form-wrap').style.display='none';
+  showToast('Lista creata! 🗳');
+};
+
+window.toggleListaItem=async function(listaId,itemKey){
+  const myName=getVoterName();
+  if(!myName) return showToast('Torna alla Hub per inserire il tuo nome!');
+  const item=_listaCache[listaId]?.items?.[itemKey];
+  if(!item) return;
+  const newWho=item.who?'':myName;
+  await update(ref(db,`liste/${listaId}/items/${itemKey}`),{who:newWho});
+};
+
+window.addListaItem=async function(listaId){
+  const inp=document.getElementById('add-item-'+listaId);
+  const name=(inp?.value||'').trim();
+  if(!name) return;
+  const items=_listaCache[listaId]?.items||{};
+  const order=Object.keys(items).length;
+  const newKey='i'+Date.now();
+  await update(ref(db,`liste/${listaId}/items`),{[newKey]:{name,who:'',order}});
+  inp.value='';
+};
+
+window.deleteLista=async function(id){
+  if(!confirm('Eliminare questa lista?')) return;
+  await remove(ref(db,`liste/${id}`));
+  showToast('Lista eliminata');
+};
+
+// ── RIEPILOGO DISPONIBILITÀ ─────────────────────────
+function renderRiepilogo(){
+  const el=document.getElementById('riepilogo-container');
+  if(!el) return;
+  if(Object.keys(_dispoCache).length===0){
+    el.innerHTML='<div class="card"><div style="color:var(--muted);font-size:1.1rem;text-align:center;padding:1rem 0">Nessun dato disponibilità trovato.<br>Vai su Eventi → Disponibilità e inserisci le tue!</div></div>';
+    return;
+  }
+  const days=parseInt(document.getElementById('riepilogo-range')?.value||'14');
+  const today=new Date(); const tk=todayKey();
+  const results=[];
+  for(let i=0;i<days;i++){
+    const d=new Date(today); d.setDate(d.getDate()+i);
+    const k=dateKey(d.getFullYear(),d.getMonth(),d.getDate());
+    const dispoDay=_dispoCache[k]||{};
+    const names=Object.keys(dispoDay);
+    if(names.length===0) continue;
+    let yesCount=0,maybeCount=0,noCount=0;
+    const yesPeople=[],maybePeople=[];
+    names.forEach(name=>{
+      const p=parseDispoStatus(dispoDay[name]);
+      if(p.status==='yes'){yesCount++;yesPeople.push(name);}
+      else if(p.status==='maybe'){maybeCount++;maybePeople.push(name);}
+      else noCount++;
+    });
+    const score=yesCount*2+maybeCount;
+    const label=d.toLocaleDateString('it-IT',{weekday:'short',day:'numeric',month:'short'});
+    const holiday=_holidaysCache?.[k];
+    results.push({k,label,holiday,yesCount,maybeCount,noCount,score,yesPeople,maybePeople,total:names.length});
+  }
+  results.sort((a,b)=>b.score-a.score);
+  if(results.length===0){
+    el.innerHTML='<div class="card"><div style="color:var(--muted);font-size:1.1rem;text-align:center;padding:1rem 0">Nessuna disponibilità nei prossimi '+days+' giorni.</div></div>';
+    return;
+  }
+  let html='';
+  const maxScore=results[0].score;
+  results.forEach((r,i)=>{
+    const barPct=maxScore>0?Math.round((r.score/maxScore)*100):0;
+    const isBest=i===0;
+    html+=`<div class="card" style="margin-bottom:0.8rem;${isBest?'border-color:var(--accent);border-width:3px':''}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
+        <div>
+          ${isBest?'<span style="font-size:1.2rem;margin-right:0.3rem">🏆</span>':''}
+          <span style="font-family:\'VT323\',monospace;font-size:1.4rem">${r.label}</span>
+          ${r.holiday?`<span style="font-size:0.8rem;color:#e94560;margin-left:0.4rem">${esc(r.holiday)}</span>`:''}
+        </div>
+        <span style="font-family:'VT323',monospace;font-size:1.2rem;color:var(--accent)">🟢${r.yesCount} 🟡${r.maybeCount} 🔴${r.noCount}</span>
+      </div>
+      <div style="height:10px;background:var(--bg2);border:2px solid var(--border);border-radius:4px;overflow:hidden;margin-bottom:0.5rem">
+        <div style="height:100%;width:${barPct}%;background:${isBest?'var(--accent)':'var(--accent2)'};transition:width 0.4s"></div>
+      </div>
+      <div style="font-size:0.85rem;color:var(--muted);font-family:sans-serif">
+        ${r.yesPeople.length>0?'<span style="color:#2ec4b6">Disponibili:</span> '+r.yesPeople.map(n=>esc(n)).join(', '):''}
+        ${r.maybePeople.length>0?(r.yesPeople.length>0?' · ':'')+'<span style="color:#ffc107">Forse:</span> '+r.maybePeople.map(n=>esc(n)).join(', '):''}
+      </div>
+    </div>`;
+  });
+  el.innerHTML=html;
+}
+window.renderRiepilogo=renderRiepilogo;
+
+// ── RUOTA DELLA FORTUNA ─────────────────────────────
+const WHEEL_COLORS=['#e94560','#533483','#2ec4b6','#f4a261','#264653','#e9c46a','#6a4c93','#1982c4','#06d6a0','#ef476f','#118ab2','#ffd166'];
+let _wheelAngle=0;
+let _wheelSpinning=false;
+
+function drawWheel(highlightIdx){
+  const canvas=document.getElementById('ruota-canvas');
+  if(!canvas) return;
+  const ctx=canvas.getContext('2d');
+  const opts=getWheelOptions();
+  const cx=150,cy=150,r=145;
+  ctx.clearRect(0,0,300,300);
+  if(opts.length===0){
+    ctx.beginPath();ctx.arc(cx,cy,r,0,2*Math.PI);ctx.fillStyle=getCSSVar('--bg2')||'#eee';ctx.fill();
+    ctx.fillStyle=getCSSVar('--muted')||'#999';ctx.font='16px VT323,monospace';ctx.textAlign='center';ctx.fillText('Inserisci opzioni sopra',cx,cy);
+    return;
+  }
+  const sliceAngle=2*Math.PI/opts.length;
+  opts.forEach((opt,i)=>{
+    const start=_wheelAngle+i*sliceAngle;
+    const end=start+sliceAngle;
+    ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,r,start,end);ctx.closePath();
+    ctx.fillStyle=WHEEL_COLORS[i%WHEEL_COLORS.length];
+    if(highlightIdx===i){ ctx.fillStyle='#fff'; }
+    ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,0.3)';ctx.lineWidth=2;ctx.stroke();
+    // Text
+    ctx.save();ctx.translate(cx,cy);ctx.rotate(start+sliceAngle/2);
+    ctx.fillStyle=highlightIdx===i?'#000':'#fff';
+    ctx.font='bold 14px VT323,monospace';ctx.textAlign='center';ctx.textBaseline='middle';
+    const txt=opt.length>12?opt.slice(0,11)+'…':opt;
+    ctx.fillText(txt,r*0.6,0);
+    ctx.restore();
+  });
+  // Center circle
+  ctx.beginPath();ctx.arc(cx,cy,20,0,2*Math.PI);
+  ctx.fillStyle=getCSSVar('--card')||'#fff';ctx.fill();
+  ctx.strokeStyle=getCSSVar('--border')||'#333';ctx.lineWidth=3;ctx.stroke();
+}
+
+function getWheelOptions(){
+  const ta=document.getElementById('ruota-options');
+  if(!ta) return [];
+  return ta.value.split('\n').map(l=>l.trim()).filter(Boolean);
+}
+
+window.spinWheel=function(){
+  if(_wheelSpinning) return;
+  const opts=getWheelOptions();
+  if(opts.length<2) return showToast('Inserisci almeno 2 opzioni');
+  _wheelSpinning=true;
+  document.getElementById('ruota-result').textContent='';
+  const totalSpin=2*Math.PI*(5+Math.random()*5); // 5-10 full rotations
+  const duration=3000+Math.random()*1500;
+  const startAngle=_wheelAngle;
+  const startTime=performance.now();
+  function animate(now){
+    const elapsed=now-startTime;
+    const t=Math.min(elapsed/duration,1);
+    // Easing: cubic ease out
+    const ease=1-Math.pow(1-t,3);
+    _wheelAngle=startAngle+totalSpin*ease;
+    drawWheel();
+    if(t<1){ requestAnimationFrame(animate); }
+    else {
+      _wheelSpinning=false;
+      // Determine winner: top of wheel (angle = -PI/2 = 12 o'clock position)
+      const sliceAngle=2*Math.PI/opts.length;
+      const normalized=((2*Math.PI-(_wheelAngle%(2*Math.PI)))+(2*Math.PI))%(2*Math.PI);
+      // The pointer is at top (-PI/2), but our slices start from _wheelAngle
+      // Winner is the slice at angle = -PI/2 relative to wheel
+      const pointerAngle=((Math.PI*1.5-_wheelAngle)%(2*Math.PI)+2*Math.PI)%(2*Math.PI);
+      const winnerIdx=Math.floor(pointerAngle/sliceAngle)%opts.length;
+      drawWheel(winnerIdx);
+      document.getElementById('ruota-result').innerHTML=`🎉 <span style="color:var(--accent)">${esc(opts[winnerIdx])}</span> 🎉`;
+    }
+  }
+  requestAnimationFrame(animate);
+};
+
+// Badge watcher: LISTA
+onValue(ref(db,'liste'),(snap)=>{
+  _listaCache=snap.val()||{};
+  const count=Object.keys(_listaCache).length;
+  _updateHubBadge('screen-lista',count);
+});
+
+// Redraw wheel when options change
+document.getElementById('ruota-options')?.addEventListener('input',()=>{ if(!_wheelSpinning) drawWheel(); });
 
 // Badge watcher: SONDAGGI — count pending (not voted) polls
 onValue(ref(db,'polls'),(snap)=>{
