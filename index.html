@@ -403,7 +403,7 @@
       <div style="position:absolute;top:-12px;left:50%;transform:translateX(-50%);font-size:1.8rem;z-index:2;filter:drop-shadow(2px 2px 0px var(--border))">▼</div>
       <canvas id="ruota-canvas" width="300" height="300" style="max-width:300px;border-radius:50%;border:3px solid var(--border);box-shadow:4px 4px 0px var(--border)"></canvas>
     </div>
-    <div id="ruota-result" style="text-align:center;font-family:'VT323',monospace;font-size:2rem;color:var(--text);min-height:2.5rem"></div>
+    <div id="ruota-result" style="text-align:center;min-height:2.5rem"></div>
   </div>
 
 </div>
@@ -2950,7 +2950,7 @@ window.spinWheel=function(){
       const pointerAngle=((Math.PI*1.5-_wheelAngle)%(2*Math.PI)+2*Math.PI)%(2*Math.PI);
       const winnerIdx=Math.floor(pointerAngle/sliceAngle)%opts.length;
       drawWheel(winnerIdx);
-      document.getElementById('ruota-result').innerHTML=`🎉 <span style="color:var(--accent)">${esc(opts[winnerIdx])}</span> 🎉`;
+      document.getElementById('ruota-result').innerHTML=`<div style="background:var(--card);border:3px solid var(--border);border-radius:6px;padding:1rem 1.5rem;margin-top:0.5rem;box-shadow:4px 4px 0px var(--border);display:inline-block"><div style="font-size:1.4rem;margin-bottom:0.3rem">🎉 Ha vinto… 🎉</div><div style="font-family:'VT323',monospace;font-size:2.8rem;color:var(--border);text-shadow:2px 2px 0px var(--accent);line-height:1.1">${esc(opts[winnerIdx])}</div></div>`;
     }
   }
   requestAnimationFrame(animate);
