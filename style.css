@@ -113,7 +113,7 @@ textarea {resize: vertical; min-height: 70px;}
 .opt-row input {flex: 1;}
 .btn-remove {background: var(--bg2); border: 2px solid var(--border); color: var(--text); border-radius: 4px; width: 34px; height: 34px; cursor: pointer; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; box-shadow: 2px 2px 0px var(--border);}
 .btn-remove:hover {background: var(--danger); transform: translate(2px, 2px); box-shadow: 0 0 0 transparent;}
-.screen {display: none;} .screen.active {display: block;}
+.screen {display: none; animation: screenIn 0.35s ease-out;} .screen.active {display: block;}
 
 /* HOME */
 .poll-item {background: var(--card); border: 2px solid var(--border); border-radius: 6px; padding: 1.2rem 1.4rem; display: flex; align-items: center; gap: 1rem; cursor: pointer; transition: all 0.1s; margin-bottom: 0.8rem; box-shadow: 3px 3px 0px var(--border);}
@@ -393,3 +393,197 @@ body.dark-mode .dispo-status-btn.active-no {background:rgba(231,76,60,0.2);}
 /* RECURRING DISPO */
 .rec-day-btn.active {background:var(--accent);box-shadow:inset 2px 2px 0px rgba(0,0,0,0.1);transform:translate(2px,2px);}
 .rec-status-btn.active {background:var(--accent);box-shadow:inset 2px 2px 0px rgba(0,0,0,0.1);transform:translate(2px,2px);}
+
+/* ═══════════════════════════════════════
+   ANIMATIONS & VISUAL EFFECTS
+   ═══════════════════════════════════════ */
+
+/* SCREEN TRANSITIONS */
+@keyframes screenIn {
+  from { opacity:0; transform:translateY(18px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+
+/* HUB TILE STAGGER ENTRANCE */
+.hub-grid .hub-tile { opacity:0; animation: tileIn 0.4s ease-out forwards; }
+.hub-grid .hub-tile:nth-child(1) { animation-delay:0.05s; }
+.hub-grid .hub-tile:nth-child(2) { animation-delay:0.12s; }
+.hub-grid .hub-tile:nth-child(3) { animation-delay:0.19s; }
+.hub-grid .hub-tile:nth-child(4) { animation-delay:0.26s; }
+.hub-grid .hub-tile:nth-child(5) { animation-delay:0.33s; }
+@keyframes tileIn {
+  from { opacity:0; transform:translateY(20px) scale(0.95); }
+  to   { opacity:1; transform:translateY(0) scale(1); }
+}
+
+/* HUB TILE TAP BOUNCE */
+.hub-tile:active {
+  animation: tileBounce 0.3s ease-out !important;
+  opacity:1 !important;
+}
+@keyframes tileBounce {
+  0%   { transform:scale(1); }
+  40%  { transform:scale(0.92); }
+  70%  { transform:scale(1.04); }
+  100% { transform:scale(1); }
+}
+
+/* HUB ICON ANIMATIONS */
+.hub-tile-icon {
+  display:block;
+  transition:transform 0.3s ease;
+}
+.hub-tile:hover .hub-tile-icon,
+.hub-tile:active .hub-tile-icon {
+  animation: iconPop 0.5s ease;
+}
+/* Per-tile icon animations */
+.hub-tile:nth-child(1) .hub-tile-icon { animation: iconWobble 3s ease-in-out infinite; }
+.hub-tile:nth-child(2) .hub-tile-icon { animation: iconPulse 2.5s ease-in-out infinite; }
+.hub-tile:nth-child(3) .hub-tile-icon { animation: iconSwing 2.8s ease-in-out infinite; }
+.hub-tile:nth-child(4) .hub-tile-icon { animation: iconSpin 4s linear infinite; }
+.hub-tile:nth-child(5) .hub-tile-icon { animation: iconBob 2s ease-in-out infinite; }
+
+@keyframes iconWobble {
+  0%,100% { transform:rotate(0deg); }
+  25% { transform:rotate(-8deg); }
+  75% { transform:rotate(8deg); }
+}
+@keyframes iconPulse {
+  0%,100% { transform:scale(1); }
+  50% { transform:scale(1.15); }
+}
+@keyframes iconSwing {
+  0%,100% { transform:rotate(0deg); }
+  20% { transform:rotate(12deg); }
+  40% { transform:rotate(-8deg); }
+  60% { transform:rotate(5deg); }
+  80% { transform:rotate(-3deg); }
+}
+@keyframes iconSpin {
+  0% { transform:rotate(0deg); }
+  100% { transform:rotate(360deg); }
+}
+@keyframes iconBob {
+  0%,100% { transform:translateY(0); }
+  50% { transform:translateY(-5px); }
+}
+@keyframes iconPop {
+  0% { transform:scale(1); }
+  50% { transform:scale(1.35) rotate(10deg); }
+  100% { transform:scale(1) rotate(0); }
+}
+
+/* CARD ENTRANCE */
+.card { animation: cardIn 0.3s ease-out; }
+@keyframes cardIn {
+  from { opacity:0; transform:translateY(12px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+
+/* CRT SCANLINE EFFECT ON CARDS */
+.card::after {
+  content:'';
+  position:absolute;
+  inset:0;
+  border-radius:6px;
+  background:repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.02) 2px,
+    rgba(0,0,0,0.02) 4px
+  );
+  pointer-events:none;
+  z-index:0;
+}
+body.dark-mode .card::after {
+  background:repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(255,255,255,0.015) 2px,
+    rgba(255,255,255,0.015) 4px
+  );
+}
+
+/* TYPEWRITER CURSOR */
+.typewriter-cursor {
+  display:inline-block;
+  width:3px;
+  height:1em;
+  background:var(--border);
+  margin-left:4px;
+  vertical-align:text-bottom;
+  animation:cursorBlink 0.7s step-end infinite;
+}
+@keyframes cursorBlink {
+  0%,100% { opacity:1; }
+  50% { opacity:0; }
+}
+
+/* CONFETTI */
+.confetti-container {
+  position:fixed;
+  top:0;left:0;right:0;bottom:0;
+  pointer-events:none;
+  z-index:9999;
+  overflow:hidden;
+}
+.confetti-piece {
+  position:absolute;
+  top:-20px;
+  width:10px;
+  height:10px;
+  opacity:0.9;
+  animation:confettiFall linear forwards;
+}
+@keyframes confettiFall {
+  0%   { transform:translateY(0) rotate(0deg) scale(1); opacity:1; }
+  80%  { opacity:0.8; }
+  100% { transform:translateY(100vh) rotate(720deg) scale(0.3); opacity:0; }
+}
+
+/* BUTTON MICRO-ANIMATIONS */
+.btn { transition:all 0.12s ease; }
+.btn:active:not(:disabled) {
+  transform:translate(2px,2px) scale(0.97) !important;
+  box-shadow:0 0 0 transparent !important;
+}
+
+/* POLL ITEM STAGGER */
+.poll-item { animation: cardIn 0.3s ease-out both; }
+.poll-item:nth-child(1) { animation-delay:0.03s; }
+.poll-item:nth-child(2) { animation-delay:0.08s; }
+.poll-item:nth-child(3) { animation-delay:0.13s; }
+.poll-item:nth-child(4) { animation-delay:0.18s; }
+.poll-item:nth-child(5) { animation-delay:0.23s; }
+
+/* BACHECA POST ENTRANCE */
+.bacheca-post { animation: cardIn 0.25s ease-out both; }
+
+/* GIOCO ITEM ENTRANCE */
+.gioco-item { animation: cardIn 0.3s ease-out both; }
+
+/* TOAST ANIMATION UPGRADE */
+.toast {
+  transition:opacity 0.3s, transform 0.3s;
+  transform:translateX(-50%) translateY(20px);
+}
+.toast.show {
+  opacity:1;
+  transform:translateX(-50%) translateY(0);
+}
+
+/* EVENTO ITEM ENTRANCE */
+.evento-item { animation: cardIn 0.25s ease-out; }
+.upcoming-evento { animation: cardIn 0.25s ease-out; }
+
+/* GRID BACKGROUND SUBTLE ANIMATION */
+@keyframes gridShift {
+  0%   { background-position:0 0, 0 0; }
+  100% { background-position:25px 25px, 25px 25px; }
+}
+body {
+  animation:gridShift 20s linear infinite;
+}

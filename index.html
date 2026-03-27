@@ -18,7 +18,7 @@
 
   <!-- HUB -->
   <div id="screen-hub" class="screen active">
-    <h1>After pasquetta</h1>
+    <h1 id="hub-title"></h1>
     <p class="subtitle">Cosa vuoi fare?</p>
 
     <!-- LOGIN GLOBALE -->
@@ -3047,6 +3047,7 @@ window.spinWheel=function(){
       const winnerIdx=Math.floor(pointerAngle/sliceAngle)%opts.length;
       drawWheel(winnerIdx);
       document.getElementById('ruota-result').innerHTML=`<div style="background:var(--card);border:3px solid var(--border);border-radius:6px;padding:1rem 1.5rem;margin-top:0.5rem;box-shadow:4px 4px 0px var(--border);display:inline-block"><div style="font-size:1.4rem;margin-bottom:0.3rem">🎉 Ha vinto… 🎉</div><div style="font-family:'VT323',monospace;font-size:2.8rem;color:var(--border);text-shadow:2px 2px 0px var(--accent);line-height:1.1">${esc(opts[winnerIdx])}</div></div>`;
+      if(window.spawnConfetti) window.spawnConfetti();
     }
   }
   requestAnimationFrame(animate);
@@ -3338,6 +3339,54 @@ function goToPendingPoll(){
 window.updatePollBadge = updatePollBadge;
 window.goToPendingPoll = goToPendingPoll;
 window.hidePollBadge = hidePollBadge;
+</script>
+
+<!-- Typewriter + Confetti -->
+<script>
+// ── TYPEWRITER EFFECT ──
+(function(){
+  const el=document.getElementById('hub-title');
+  if(!el) return;
+  const text='After pasquetta';
+  let i=0;
+  el.innerHTML='<span class="typewriter-cursor"></span>';
+  function type(){
+    if(i<text.length){
+      el.innerHTML=text.slice(0,i+1)+'<span class="typewriter-cursor"></span>';
+      i++;
+      setTimeout(type, 60+Math.random()*40);
+    } else {
+      // Keep cursor blinking for a bit then remove
+      setTimeout(()=>{ el.textContent=text; },2500);
+    }
+  }
+  setTimeout(type,400);
+})();
+
+// ── CONFETTI ──
+window.spawnConfetti=function(){
+  const container=document.createElement('div');
+  container.className='confetti-container';
+  document.body.appendChild(container);
+  const colors=['#e94560','#533483','#2ec4b6','#f4a261','#e9c46a','#6a4c93','#1982c4','#06d6a0','#ef476f','#ffd166','#ffb6c1','#a2cffe'];
+  const shapes=['square','circle','rect'];
+  for(let i=0;i<60;i++){
+    const p=document.createElement('div');
+    p.className='confetti-piece';
+    const color=colors[Math.floor(Math.random()*colors.length)];
+    const shape=shapes[Math.floor(Math.random()*shapes.length)];
+    const size=6+Math.random()*8;
+    p.style.left=Math.random()*100+'%';
+    p.style.width=shape==='rect'?size*2+'px':size+'px';
+    p.style.height=size+'px';
+    p.style.background=color;
+    p.style.borderRadius=shape==='circle'?'50%':'0';
+    p.style.animationDuration=(1.5+Math.random()*2)+'s';
+    p.style.animationDelay=(Math.random()*0.6)+'s';
+    container.appendChild(p);
+  }
+  setTimeout(()=>container.remove(),4500);
+};
 </script>
 </body>
 </html>
