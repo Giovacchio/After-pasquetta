@@ -55,16 +55,6 @@
         <span class="hub-tile-sub">Organizza cibo e materiale</span>
         <div class="hub-tile-badge" id="hub-lista-badge">0</div>
       </div>
-      <div class="hub-tile" onclick="goTo('screen-riepilogo')">
-        <span class="hub-tile-icon">📊</span>
-        <span class="hub-tile-label">Best Day</span>
-        <span class="hub-tile-sub">Miglior giorno per uscire</span>
-      </div>
-      <div class="hub-tile" onclick="goTo('screen-ruota')">
-        <span class="hub-tile-icon">🎡</span>
-        <span class="hub-tile-label">Ruota</span>
-        <span class="hub-tile-sub">Decidi a caso!</span>
-      </div>
     </div>
 
     <!-- CHAT IN HUB -->
@@ -236,6 +226,19 @@
       </div>
     </div>
 
+    <!-- BEST DAY (embedded in dispo mode) -->
+    <div id="best-day-wrap" style="display:none;margin-top:1.5rem">
+      <div class="section-title" style="margin-bottom:0.8rem">📊 Best Day</div>
+      <div class="card">
+        <label style="margin-bottom:0.3rem">Prossimi giorni da analizzare</label>
+        <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0">
+          <input type="range" id="riepilogo-range" min="2" max="60" value="7" oninput="document.getElementById('riepilogo-range-label').textContent=this.value+' giorni';window.renderRiepilogo&&renderRiepilogo()" style="flex:1;accent-color:var(--accent)">
+          <span id="riepilogo-range-label" style="font-family:'VT323',monospace;font-size:1.2rem;min-width:70px;text-align:right">7 giorni</span>
+        </div>
+      </div>
+      <div id="riepilogo-container"></div>
+    </div>
+
     <!-- TIME PICKER OVERLAY (appare su long-press di un giorno disponibile) -->
     <div id="dispo-time-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1200;align-items:center;justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
       <div style="background:var(--card);border:2px solid var(--border);border-radius:6px;padding:1.5rem;width:min(340px,90vw);box-shadow:8px 8px 0px rgba(0,0,0,0.2);">
@@ -345,6 +348,21 @@
         </div>
       </div>
     </div>
+
+    <!-- RUOTA DELLA FORTUNA (embedded in giochi) -->
+    <div style="margin-top:1.5rem">
+      <div class="section-title" style="margin-bottom:0.8rem">🎡 Ruota della fortuna</div>
+      <div class="card">
+        <label>Opzioni (una per riga)</label>
+        <textarea id="ruota-options" placeholder="Pizza&#10;Sushi&#10;Kebab&#10;Hamburger&#10;Cinese" style="margin-bottom:0.8rem;min-height:100px"></textarea>
+        <button class="btn btn-primary btn-full" onclick="window.spinWheel()">🎡 Gira la ruota!</button>
+      </div>
+      <div style="display:flex;justify-content:center;margin:1.5rem 0;position:relative">
+        <div style="position:absolute;top:-12px;left:50%;transform:translateX(-50%);font-size:1.8rem;z-index:2;filter:drop-shadow(2px 2px 0px var(--border))">▼</div>
+        <canvas id="ruota-canvas" width="300" height="300" style="max-width:300px;border-radius:50%;border:3px solid var(--border);box-shadow:4px 4px 0px var(--border)"></canvas>
+      </div>
+      <div id="ruota-result" style="text-align:center;min-height:2.5rem"></div>
+    </div>
   </div>
 
   <!-- CHI PORTA COSA -->
@@ -372,39 +390,6 @@
     </div>
   </div>
 
-  <!-- RIEPILOGO DISPONIBILITA -->
-  <div id="screen-riepilogo" class="screen">
-    <div class="topbar">
-      <div><h1>📊 Best Day</h1><p class="subtitle">Trova il miglior giorno per uscire</p></div>
-      <button class="btn btn-secondary" onclick="goTo('screen-hub')">← Hub</button>
-    </div>
-    <div class="card">
-      <label style="margin-bottom:0.3rem">Prossimi giorni da analizzare</label>
-      <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:1rem">
-        <input type="range" id="riepilogo-range" min="7" max="60" value="14" oninput="document.getElementById('riepilogo-range-label').textContent=this.value+' giorni';window.renderRiepilogo&&renderRiepilogo()" style="flex:1;accent-color:var(--accent)">
-        <span id="riepilogo-range-label" style="font-family:'VT323',monospace;font-size:1.2rem;min-width:70px;text-align:right">14 giorni</span>
-      </div>
-    </div>
-    <div id="riepilogo-container"><div style="color:var(--muted)">Carica la sezione Eventi almeno una volta per analizzare i dati.</div></div>
-  </div>
-
-  <!-- RUOTA DELLA FORTUNA -->
-  <div id="screen-ruota" class="screen">
-    <div class="topbar">
-      <div><h1>🎡 Ruota della fortuna</h1><p class="subtitle">Lascia decidere il destino!</p></div>
-      <button class="btn btn-secondary" onclick="goTo('screen-hub')">← Hub</button>
-    </div>
-    <div class="card">
-      <label>Opzioni (una per riga)</label>
-      <textarea id="ruota-options" placeholder="Pizza&#10;Sushi&#10;Kebab&#10;Hamburger&#10;Cinese" style="margin-bottom:0.8rem;min-height:100px"></textarea>
-      <button class="btn btn-primary btn-full" onclick="window.spinWheel()">🎡 Gira la ruota!</button>
-    </div>
-    <div style="display:flex;justify-content:center;margin:1.5rem 0;position:relative">
-      <div style="position:absolute;top:-12px;left:50%;transform:translateX(-50%);font-size:1.8rem;z-index:2;filter:drop-shadow(2px 2px 0px var(--border))">▼</div>
-      <canvas id="ruota-canvas" width="300" height="300" style="max-width:300px;border-radius:50%;border:3px solid var(--border);box-shadow:4px 4px 0px var(--border)"></canvas>
-    </div>
-    <div id="ruota-result" style="text-align:center;min-height:2.5rem"></div>
-  </div>
 
 </div>
 <div class="update-banner" id="update-banner">
@@ -499,7 +484,7 @@ function showToast(msg){ const t=document.getElementById('toast'); t.textContent
 function goTo(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); document.getElementById(id).classList.add('active'); window.scrollTo(0,0);
   // Mostra settings solo in hub, home e bacheca
   const settingsBtn=document.getElementById('settings-btn');
-  const showSettings = ['screen-hub','screen-home','screen-bacheca','screen-eventi','screen-giochi','screen-lista','screen-riepilogo','screen-ruota'].includes(id);
+  const showSettings = ['screen-hub','screen-home','screen-bacheca','screen-eventi','screen-giochi','screen-lista'].includes(id);
   if(settingsBtn) settingsBtn.style.display = showSettings ? '' : 'none';
   // Badge gattino: visibile solo fuori dalla home se ci sono poll pending
   if(window._refreshBadgeDisplay) window._refreshBadgeDisplay();
@@ -1511,6 +1496,7 @@ function initEventi(){
       });
       renderCal();
       if(calSelectedDate && calMode==='dispo') renderDispoDetail(calSelectedDate);
+      if(calMode==='dispo') renderRiepilogo();
     });
   }
   _holidaysCache = getItalianHolidays(calYear);
@@ -1535,6 +1521,10 @@ window.setCalMode=function(mode){
   document.getElementById('dispo-day-detail').style.display = (mode==='dispo' && calSelectedDate)?'block':'none';
   document.getElementById('dispo-time-overlay').style.display='none';
   document.getElementById('recurring-dispo-overlay').style.display='none';
+  // Best Day: visibile solo in modalità dispo
+  const bestDayWrap = document.getElementById('best-day-wrap');
+  if(bestDayWrap) bestDayWrap.style.display = mode==='dispo'?'block':'none';
+  if(mode==='dispo') renderRiepilogo();
   renderCal();
   if(calSelectedDate){
     if(mode==='eventi') renderEventoList(calSelectedDate);
@@ -2463,10 +2453,8 @@ const _origGoTo = window.goTo;
 window.goTo = function(id){
   _origGoTo(id);
   if(id==='screen-eventi') initEventi();
-  if(id==='screen-giochi') initGiochi();
+  if(id==='screen-giochi'){ initGiochi(); drawWheel(); }
   if(id==='screen-lista') initLista();
-  if(id==='screen-riepilogo') renderRiepilogo();
-  if(id==='screen-ruota') drawWheel();
 };
 
 // ── BACHECA ───────────────────────────────────────────
@@ -2819,10 +2807,10 @@ function renderRiepilogo(){
   const el=document.getElementById('riepilogo-container');
   if(!el) return;
   if(Object.keys(_dispoCache).length===0){
-    el.innerHTML='<div class="card"><div style="color:var(--muted);font-size:1.1rem;text-align:center;padding:1rem 0">Nessun dato disponibilità trovato.<br>Vai su Eventi → Disponibilità e inserisci le tue!</div></div>';
+    el.innerHTML='<div style="color:var(--muted);font-size:1.1rem;text-align:center;padding:1rem 0">Nessuna disponibilità inserita ancora.<br>Usa il calendario qui sopra per aggiungere le tue!</div>';
     return;
   }
-  const days=parseInt(document.getElementById('riepilogo-range')?.value||'14');
+  const days=parseInt(document.getElementById('riepilogo-range')?.value||'7');
   const today=new Date(); const tk=todayKey();
   const results=[];
   for(let i=0;i<days;i++){
