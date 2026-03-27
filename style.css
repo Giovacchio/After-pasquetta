@@ -315,6 +315,8 @@ body.dark-mode {
 .cal-cell.selected {background:var(--accent);border-color:var(--border);box-shadow:2px 2px 0px var(--border);}
 .cal-cell.has-event::after {content:'';position:absolute;bottom:3px;left:50%;transform:translateX(-50%);width:6px;height:6px;border-radius:0;background:var(--border);}
 .cal-cell.selected.has-event::after {background:var(--card);}
+.cal-cell.dispo-cell.has-event::after {display:none;}
+.cal-event-marker {position:absolute;top:1px;left:1px;font-size:0.5rem;line-height:1;z-index:2;pointer-events:none;}
 .cal-cell-num {font-family:'VT323',monospace;font-size:1.2rem;color:var(--text);line-height:1;}
 .cal-cell.cal-empty {cursor:default;}
 .cal-cell.other-month .cal-cell-num {color:var(--muted);}

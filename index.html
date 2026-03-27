@@ -1566,7 +1566,8 @@ function renderCal(){
     let classes = 'cal-cell';
     if(k===tk) classes+=' today';
     if(k===calSelectedDate && calMode==='eventi') classes+=' selected';
-    if(hasEvents && calMode==='eventi') classes+=' has-event';
+    if(hasEvents) classes+=' has-event';
+    if(calMode==='dispo') classes+=' dispo-cell';
     if(myDispo && calMode==='dispo'){
       if(myDispo.status==='yes') classes+=' my-available';
       else if(myDispo.status==='maybe') classes+=' my-maybe';
@@ -1581,6 +1582,13 @@ function renderCal(){
     // Build inner HTML
     let inner = '';
     inner += `<span class="cal-cell-num">${d}</span>`;
+
+    // Event marker in dispo mode (small star top-left)
+    if(calMode==='dispo' && hasEvents){
+      const evCount = _eventiCache[k].length;
+      const evTitles = _eventiCache[k].map(ev=>esc(ev.title||'Evento')).join(', ');
+      inner += `<span class="cal-event-marker" title="${evTitles}">📅</span>`;
+    }
 
     // Availability dots in dispo mode
     if(calMode==='dispo' && dispoNames.length>0){
