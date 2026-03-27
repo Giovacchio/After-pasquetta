@@ -228,6 +228,11 @@
 
     <!-- BEST DAY (embedded in dispo mode) -->
     <div id="best-day-wrap" style="display:none;margin-top:1.5rem">
+      <!-- Prossimi eventi riepilogo -->
+      <div id="dispo-upcoming-wrap" style="margin-bottom:1.2rem">
+        <div class="section-title" style="margin-bottom:0.8rem">📆 Prossimi eventi</div>
+        <div id="dispo-upcoming-list"></div>
+      </div>
       <div class="section-title" style="margin-bottom:0.8rem">📊 Best Day</div>
       <div class="card">
         <label style="margin-bottom:0.3rem">Prossimi giorni da analizzare</label>
@@ -321,6 +326,23 @@
       <button class="btn btn-secondary" onclick="goTo('screen-hub')">← Hub</button>
     </div>
 
+    <!-- RUOTA DELLA FORTUNA (sopra ai giochi) -->
+    <div style="margin-bottom:1.5rem">
+      <div class="section-title" style="margin-bottom:0.8rem">🎡 Ruota della fortuna</div>
+      <div class="card">
+        <label>Opzioni (una per riga)</label>
+        <textarea id="ruota-options" placeholder="Pizza&#10;Sushi&#10;Kebab&#10;Hamburger&#10;Cinese" style="margin-bottom:0.8rem;min-height:100px"></textarea>
+        <button class="btn btn-primary btn-full" onclick="window.spinWheel()">🎡 Gira la ruota!</button>
+      </div>
+      <div style="display:flex;justify-content:center;margin:1.5rem 0;position:relative">
+        <div style="position:absolute;top:-12px;left:50%;transform:translateX(-50%);font-size:1.8rem;z-index:2;filter:drop-shadow(2px 2px 0px var(--border))">▼</div>
+        <canvas id="ruota-canvas" width="300" height="300" style="max-width:300px;border-radius:50%;border:3px solid var(--border);box-shadow:4px 4px 0px var(--border)"></canvas>
+      </div>
+      <div id="ruota-result" style="text-align:center;min-height:2.5rem"></div>
+    </div>
+
+    <!-- GIOCHI PERSONALIZZATI -->
+    <div class="section-title" style="margin-bottom:0.8rem">🎮 Giochi di gruppo</div>
     <div id="giochi-list">
       <div id="custom-giochi-container"><div style="color:var(--muted);font-size:1.1rem"><span class="spinner"></span> Caricamento...</div></div>
     </div>
@@ -330,7 +352,7 @@
       <button class="btn btn-primary" id="btn-toggle-gioco-form" onclick="window.toggleGiocoForm()" style="width:100%">+ Aggiungi un gioco</button>
       <div id="gioco-form-wrap" style="display:none;margin-top:1rem">
         <div class="card">
-          <div class="section-title" style="margin-bottom:1rem">Nuovo gioco</div>
+          <div class="section-title" id="gioco-form-title" style="margin-bottom:1rem">Nuovo gioco</div>
           <label>Titolo</label>
           <input type="text" id="gioco-title" placeholder="Es. Battaglia navale" style="margin-bottom:0.8rem">
           <label>Emoji icona</label>
@@ -343,25 +365,10 @@
           <textarea id="gioco-rules" placeholder="Scrivi le regole del gioco..." maxlength="1500" style="margin-bottom:0.8rem;min-height:120px"></textarea>
           <div class="btn-row">
             <button class="btn btn-primary" id="btn-submit-gioco" onclick="window.submitGioco()">✅ Pubblica</button>
-            <button class="btn btn-secondary" onclick="window.toggleGiocoForm()">Annulla</button>
+            <button class="btn btn-secondary" onclick="window.cancelGiocoForm()">Annulla</button>
           </div>
         </div>
       </div>
-    </div>
-
-    <!-- RUOTA DELLA FORTUNA (embedded in giochi) -->
-    <div style="margin-top:1.5rem">
-      <div class="section-title" style="margin-bottom:0.8rem">🎡 Ruota della fortuna</div>
-      <div class="card">
-        <label>Opzioni (una per riga)</label>
-        <textarea id="ruota-options" placeholder="Pizza&#10;Sushi&#10;Kebab&#10;Hamburger&#10;Cinese" style="margin-bottom:0.8rem;min-height:100px"></textarea>
-        <button class="btn btn-primary btn-full" onclick="window.spinWheel()">🎡 Gira la ruota!</button>
-      </div>
-      <div style="display:flex;justify-content:center;margin:1.5rem 0;position:relative">
-        <div style="position:absolute;top:-12px;left:50%;transform:translateX(-50%);font-size:1.8rem;z-index:2;filter:drop-shadow(2px 2px 0px var(--border))">▼</div>
-        <canvas id="ruota-canvas" width="300" height="300" style="max-width:300px;border-radius:50%;border:3px solid var(--border);box-shadow:4px 4px 0px var(--border)"></canvas>
-      </div>
-      <div id="ruota-result" style="text-align:center;min-height:2.5rem"></div>
     </div>
   </div>
 
@@ -1587,7 +1594,7 @@ function renderCal(){
     if(calMode==='dispo' && hasEvents){
       const evCount = _eventiCache[k].length;
       const evTitles = _eventiCache[k].map(ev=>esc(ev.title||'Evento')).join(', ');
-      inner += `<span class="cal-event-marker" title="${evTitles}">📅</span>`;
+      inner += `<span class="cal-event-marker" title="${evTitles}">⭐</span>`;
     }
 
     // Availability dots in dispo mode
@@ -2630,24 +2637,69 @@ function renderCustomGiochi(data){
           <h3>Come si gioca</h3>
           <p style="white-space:pre-wrap">${esc(g.rules||'Nessuna regola specificata.')}</p>
           <div style="margin-top:0.8rem;font-size:0.85rem;color:var(--muted);font-family:sans-serif">Aggiunto da ${esc(g.author||'Anonimo')}</div>
-          <div style="margin-top:0.5rem"><button class="btn btn-danger" style="font-size:0.85rem;padding:0.3rem 0.7rem" onclick="event.stopPropagation();window.deleteGioco('${id}')">🗑 Elimina</button></div>
+          <div style="margin-top:0.5rem;display:flex;gap:0.5rem">
+            <button class="btn btn-secondary" style="font-size:0.85rem;padding:0.3rem 0.7rem" onclick="event.stopPropagation();window.editGioco('${id}')">✏️ Modifica</button>
+            <button class="btn btn-danger" style="font-size:0.85rem;padding:0.3rem 0.7rem" onclick="event.stopPropagation();window.deleteGioco('${id}')">🗑 Elimina</button>
+          </div>
         </div>
       </div>`;
     el.appendChild(div);
   });
 }
 
+let _editingGiocoId = null;
+
 window.toggleGiocoForm=function(){
   const wrap = document.getElementById('gioco-form-wrap');
   const btn = document.getElementById('btn-toggle-gioco-form');
   if(wrap.style.display==='none'){
+    _editingGiocoId = null;
+    document.getElementById('gioco-form-title').textContent='Nuovo gioco';
+    document.getElementById('gioco-title').value='';
+    document.getElementById('gioco-icon').value='';
+    document.getElementById('gioco-desc').value='';
+    document.getElementById('gioco-tags').value='';
+    document.getElementById('gioco-rules').value='';
+    document.getElementById('btn-submit-gioco').textContent='✅ Pubblica';
     wrap.style.display='block';
     btn.style.display='none';
     wrap.scrollIntoView({behavior:'smooth',block:'nearest'});
     document.getElementById('gioco-title').focus();
   } else {
+    _editingGiocoId = null;
     wrap.style.display='none';
     btn.style.display='';
+  }
+};
+
+window.cancelGiocoForm=function(){
+  _editingGiocoId = null;
+  document.getElementById('gioco-form-wrap').style.display='none';
+  document.getElementById('btn-toggle-gioco-form').style.display='';
+};
+
+window.editGioco=async function(id){
+  try{
+    const snap=await get(ref(db,`giochi/${id}`));
+    if(!snap.exists()) return showToast('Gioco non trovato');
+    const g=snap.val();
+    _editingGiocoId = id;
+    document.getElementById('gioco-form-title').textContent='Modifica gioco';
+    document.getElementById('gioco-title').value=g.title||'';
+    document.getElementById('gioco-icon').value=g.icon||'';
+    document.getElementById('gioco-desc').value=g.desc||'';
+    document.getElementById('gioco-tags').value=g.tags||'';
+    document.getElementById('gioco-rules').value=g.rules||'';
+    document.getElementById('btn-submit-gioco').textContent='💾 Salva modifiche';
+    const wrap=document.getElementById('gioco-form-wrap');
+    const btn=document.getElementById('btn-toggle-gioco-form');
+    wrap.style.display='block';
+    btn.style.display='none';
+    wrap.scrollIntoView({behavior:'smooth',block:'nearest'});
+    document.getElementById('gioco-title').focus();
+  }catch(e){
+    showToast('Errore: '+e.message);
+    console.error('editGioco error:',e);
   }
 };
 
@@ -2662,10 +2714,18 @@ window.submitGioco=async function(){
   const author = getVoterName()||'Anonimo';
   const btn = document.getElementById('btn-submit-gioco');
   try{
-    btn.disabled=true; btn.innerHTML='<span class="spinner"></span>Pubblicazione...';
-    await push(ref(db,'giochi'),{title,icon,desc,tags,rules,author,ts:Date.now()});
-    showToast('Gioco aggiunto! 🎲');
+    btn.disabled=true; btn.innerHTML='<span class="spinner"></span>Salvataggio...';
+    if(_editingGiocoId){
+      // Update existing
+      await update(ref(db,`giochi/${_editingGiocoId}`),{title,icon,desc,tags,rules});
+      showToast('Gioco aggiornato! ✏️');
+    } else {
+      // Create new
+      await push(ref(db,'giochi'),{title,icon,desc,tags,rules,author,ts:Date.now()});
+      showToast('Gioco aggiunto! 🎲');
+    }
     // Reset form
+    _editingGiocoId = null;
     document.getElementById('gioco-title').value='';
     document.getElementById('gioco-icon').value='';
     document.getElementById('gioco-desc').value='';
@@ -2676,7 +2736,7 @@ window.submitGioco=async function(){
   }catch(e){
     showToast('Errore: '+e.message);
   }finally{
-    btn.disabled=false; btn.textContent='✅ Pubblica';
+    btn.disabled=false; btn.textContent=_editingGiocoId?'💾 Salva modifiche':'✅ Pubblica';
   }
 };
 
@@ -2814,6 +2874,10 @@ window.deleteLista=async function(id){
 function renderRiepilogo(){
   const el=document.getElementById('riepilogo-container');
   if(!el) return;
+
+  // Render upcoming events in dispo mode
+  renderDispoUpcoming();
+
   if(Object.keys(_dispoCache).length===0){
     el.innerHTML='<div style="color:var(--muted);font-size:1.1rem;text-align:center;padding:1rem 0">Nessuna disponibilità inserita ancora.<br>Usa il calendario qui sopra per aggiungere le tue!</div>';
     return;
@@ -2821,12 +2885,14 @@ function renderRiepilogo(){
   const days=parseInt(document.getElementById('riepilogo-range')?.value||'7');
   const today=new Date(); const tk=todayKey();
   const results=[];
+
+  // Scan only days that have availability data within the range
   for(let i=0;i<days;i++){
     const d=new Date(today); d.setDate(d.getDate()+i);
     const k=dateKey(d.getFullYear(),d.getMonth(),d.getDate());
     const dispoDay=_dispoCache[k]||{};
     const names=Object.keys(dispoDay);
-    if(names.length===0) continue;
+    if(names.length===0) continue; // skip days without any dispo
     let yesCount=0,maybeCount=0,noCount=0;
     const yesPeople=[],maybePeople=[];
     names.forEach(name=>{
@@ -2835,14 +2901,17 @@ function renderRiepilogo(){
       else if(p.status==='maybe'){maybeCount++;maybePeople.push(name);}
       else noCount++;
     });
+    // Only include if at least one yes or maybe
+    if(yesCount===0 && maybeCount===0) continue;
     const score=yesCount*2+maybeCount;
     const label=d.toLocaleDateString('it-IT',{weekday:'short',day:'numeric',month:'short'});
     const holiday=_holidaysCache?.[k];
-    results.push({k,label,holiday,yesCount,maybeCount,noCount,score,yesPeople,maybePeople,total:names.length});
+    const evs=_eventiCache[k]||[];
+    results.push({k,label,holiday,yesCount,maybeCount,noCount,score,yesPeople,maybePeople,total:names.length,evs});
   }
   results.sort((a,b)=>b.score-a.score);
   if(results.length===0){
-    el.innerHTML='<div class="card"><div style="color:var(--muted);font-size:1.1rem;text-align:center;padding:1rem 0">Nessuna disponibilità nei prossimi '+days+' giorni.</div></div>';
+    el.innerHTML='<div style="color:var(--muted);font-size:1.1rem;text-align:center;padding:1rem 0">Nessuna disponibilità positiva nei prossimi '+days+' giorni.</div>';
     return;
   }
   let html='';
@@ -2850,6 +2919,8 @@ function renderRiepilogo(){
   results.forEach((r,i)=>{
     const barPct=maxScore>0?Math.round((r.score/maxScore)*100):0;
     const isBest=i===0;
+    // Show event titles for this day if any
+    const evHtml=r.evs.length>0?`<div style="font-size:0.85rem;color:var(--border);font-family:sans-serif;margin-top:0.3rem">⭐ ${r.evs.map(e=>esc(e.title||'Evento')+(e.time?' '+esc(e.time):'')).join(' · ')}</div>`:'';
     html+=`<div class="card" style="margin-bottom:0.8rem;${isBest?'border-color:var(--accent);border-width:3px':''}">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
         <div>
@@ -2866,10 +2937,39 @@ function renderRiepilogo(){
         ${r.yesPeople.length>0?'<span style="color:#2ec4b6">Disponibili:</span> '+r.yesPeople.map(n=>esc(n)).join(', '):''}
         ${r.maybePeople.length>0?(r.yesPeople.length>0?' · ':'')+'<span style="color:#ffc107">Forse:</span> '+r.maybePeople.map(n=>esc(n)).join(', '):''}
       </div>
+      ${evHtml}
     </div>`;
   });
   el.innerHTML=html;
 }
+
+function renderDispoUpcoming(){
+  const el=document.getElementById('dispo-upcoming-list');
+  if(!el) return;
+  const tk=todayKey();
+  const future=Object.entries(_eventiCache)
+    .filter(([k])=>k>=tk)
+    .sort((a,b)=>a[0].localeCompare(b[0]));
+  if(future.length===0){ el.innerHTML='<div style="color:var(--muted);font-size:1.1rem">Nessun evento in programma.</div>'; return; }
+  el.innerHTML='';
+  future.slice(0,8).forEach(([dateStr,evs])=>{
+    const [y,m,d]=dateStr.split('-');
+    const dt=new Date(+y,+m-1,+d);
+    const dayLabel=dt.toLocaleDateString('it-IT',{weekday:'short',day:'numeric',month:'short'});
+    const holiday=_holidaysCache[dateStr];
+    const dispoDay=_dispoCache[dateStr]||{};
+    const dispoCount=Object.keys(dispoDay).length;
+    evs.forEach(ev=>{
+      const div=document.createElement('div'); div.className='upcoming-evento';
+      div.innerHTML=`<div class="upcoming-date-badge">${dayLabel}${holiday?' 🎉':''}</div>
+        <div class="upcoming-title">${esc(ev.title||'Evento')}</div>
+        <div class="upcoming-time">${esc(ev.time||'')}${dispoCount>0?' · 👥'+dispoCount:''}</div>`;
+      div.onclick=()=>{ window.setCalMode('eventi'); calYear=+y; calMonth=+m-1; renderCal(); selectCalDay(+y,+m-1,+d); };
+      el.appendChild(div);
+    });
+  });
+}
+
 window.renderRiepilogo=renderRiepilogo;
 
 // ── RUOTA DELLA FORTUNA ─────────────────────────────
