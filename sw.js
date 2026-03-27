@@ -1,4 +1,4 @@
-const CACHE = 'after-pasquetta-v27';
+const CACHE = 'after-pasquetta-v26';
 const ASSETS = ['./', './index.html', './style.css', './manifest.json', './icon-192.png', './icon-512.png'];
 
 // Ricevi il messaggio dall'app per attivarsi subito
@@ -27,7 +27,7 @@ self.addEventListener('fetch', e => {
   // Non cachare mai chiamate Firebase / API esterne
   if(url.hostname.includes('firebasedatabase.app') ||
      url.hostname.includes('firebaseio.com') ||
-     url.hostname.includes('googleapis.com') && url.pathname.includes('/v1')){
+     (url.hostname.includes('googleapis.com') && url.pathname.includes('/v1'))){
     return;
   }
 
