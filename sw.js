@@ -1,5 +1,5 @@
-const CACHE = 'after-pasquetta-v28';
-const ASSETS = ['./', './index.html', './style.css', './manifest.json', './icon192.png', './icon512.png'];
+const CACHE = 'after-pasquetta-v27';
+const ASSETS = ['./', './index.html', './style.css', './manifest.json', './icon-192.png', './icon-512.png'];
 
 // Ricevi il messaggio dall'app per attivarsi subito
 self.addEventListener('message', e => {
@@ -49,7 +49,7 @@ self.addEventListener('fetch', e => {
 
   // Tutto il resto: network-first con fallback cache
   e.respondWith(
-    fetch(e.request)
+    fetch(e.request, { cache: 'no-store' })
       .then(response => {
         const clone = response.clone();
         caches.open(CACHE).then(c => c.put(e.request, clone));

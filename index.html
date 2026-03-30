@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Pasquetta">
-  <link rel="apple-touch-icon" href="icon192.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="only light">
 <title>After pasquetta</title>
@@ -294,11 +294,6 @@
       <button class="btn btn-primary" style="margin-top:0.5rem;width:100%" onclick="window.openEventoForm && window.openEventoForm()">+ Aggiungi evento</button>
     </div>
 
-    <!-- PROSSIMI EVENTI (lista globale) -->
-    <div style="margin-top:1.5rem">
-      <div class="section-title" style="margin-bottom:0.8rem">📆 Prossimi eventi</div>
-      <div id="eventi-upcoming"><div style="color:var(--muted)"><span class="spinner"></span>Caricamento...</div></div>
-    </div>
   </div>
 
   <!-- BACHECA -->
@@ -397,6 +392,44 @@
     </div>
   </div>
 
+  <!-- CITAZIONI -->
+  <div id="screen-citazioni" class="screen">
+    <div class="topbar">
+      <div><h1>💬 Citazioni</h1><p class="subtitle">Le perle del gruppo</p></div>
+      <button class="btn btn-secondary" onclick="goTo('screen-hub')">← Hub</button>
+    </div>
+
+    <!-- FORM NUOVA CITAZIONE -->
+    <div class="bacheca-compose" id="citazione-compose">
+      <div class="bacheca-compose-inner">
+        <textarea id="citazione-text" placeholder="Scrivi la citazione..." maxlength="400" style="width:100%;margin-bottom:0.8rem;min-height:60px"></textarea>
+        <label style="margin-bottom:0.3rem">Chi l'ha detta?</label>
+        <input type="text" id="citazione-who" placeholder="Nome della persona" maxlength="50" style="margin-bottom:0.8rem">
+        <div class="btn-row">
+          <button class="btn btn-primary" id="btn-submit-citazione" onclick="window.submitCitazione()">📝 Pubblica</button>
+          <span style="font-size:0.95rem;color:var(--muted);font-family:sans-serif" id="citazione-name-hint"></span>
+        </div>
+      </div>
+    </div>
+
+    <div id="citazioni-container"><div style="color:var(--muted)"><span class="spinner"></span>Caricamento...</div></div>
+  </div>
+
+  <!-- CITAZIONE EDIT OVERLAY -->
+  <div id="citazione-edit-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1200;align-items:center;justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
+    <div style="background:var(--card);border:2px solid var(--border);border-radius:6px;padding:1.5rem;width:min(380px,92vw);box-shadow:8px 8px 0px rgba(0,0,0,0.2);">
+      <div class="section-title" style="margin-bottom:1rem">✏️ Modifica citazione</div>
+      <label>Citazione</label>
+      <textarea id="citazione-edit-text" maxlength="400" style="margin-bottom:0.8rem;min-height:60px"></textarea>
+      <label>Chi l'ha detta?</label>
+      <input type="text" id="citazione-edit-who" maxlength="50" style="margin-bottom:0.8rem">
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="window.saveCitazioneEdit()">💾 Salva</button>
+        <button class="btn btn-secondary" onclick="document.getElementById('citazione-edit-overlay').style.display='none'">Annulla</button>
+      </div>
+    </div>
+  </div>
+
 
 </div>
 <div class="update-banner" id="update-banner">
@@ -489,14 +522,19 @@ function sanitize(s){ return s.replace(/[.#$\/\[\]]/g,'_'); }
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function showToast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2200); }
 function goTo(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); document.getElementById(id).classList.add('active'); window.scrollTo(0,0);
+  // Push history state for Android back button
+  if(!window._popstateNav) history.pushState({screen:id}, '', '');
+  window._popstateNav = false;
+  window._currentScreen = id;
   // Mostra settings solo in hub, home e bacheca
   const settingsBtn=document.getElementById('settings-btn');
-  const showSettings = ['screen-hub','screen-home','screen-bacheca','screen-eventi','screen-giochi','screen-lista'].includes(id);
+  const showSettings = ['screen-hub','screen-home','screen-bacheca','screen-eventi','screen-giochi','screen-lista','screen-citazioni'].includes(id);
   if(settingsBtn) settingsBtn.style.display = showSettings ? '' : 'none';
   // Badge gattino: visibile solo fuori dalla home se ci sono poll pending
   if(window._refreshBadgeDisplay) window._refreshBadgeDisplay();
   // Refresh bacheca hint
   if(id==='screen-bacheca'){ const hint=document.getElementById('bacheca-name-hint'); if(hint){ const n=getVoterName(); hint.textContent=n?`Pubblichi come: ${n}`:'(torna alla Hub per inserire il tuo nome)'; } }
+  if(id==='screen-citazioni'){ const hint=document.getElementById('citazione-name-hint'); if(hint){ const n=getVoterName(); hint.textContent=n?`Aggiungi come: ${n}`:'(torna alla Hub per inserire il tuo nome)'; } }
   // Mark section as seen → hide hub badge
   if(window._markSectionSeen) window._markSectionSeen(id);
   // Reset e auto-fill form creazione sondaggio
@@ -534,11 +572,20 @@ function renderHubLogin(){
   const wrap = document.getElementById('hub-login-wrap');
   if(!wrap) return;
   const name = getVoterName();
+  const avatar = localStorage.getItem('userAvatar');
   if(name){
+    const avatarHtml = avatar
+      ? `<img src="${avatar}" class="hub-avatar" alt="avatar">`
+      : `<div class="hub-avatar hub-avatar-placeholder">👤</div>`;
     wrap.innerHTML=`<div class="hub-login-banner">
       <div class="hub-welcome">
+        <div style="position:relative;cursor:pointer" onclick="document.getElementById('avatar-upload').click()" title="Cambia foto profilo">
+          ${avatarHtml}
+          <div class="hub-avatar-edit">📷</div>
+        </div>
+        <input type="file" id="avatar-upload" accept="image/*" style="display:none" onchange="window.handleAvatarUpload(this)">
         <div>
-          <div class="hub-welcome-name">👤 Ciao, ${esc(name)}!</div>
+          <div class="hub-welcome-name">Ciao, ${esc(name)}!</div>
           <div class="hub-welcome-sub">Pronto per l'avventura?</div>
         </div>
       </div>
@@ -575,6 +622,41 @@ window.changeGlobalName=function(){
   localStorage.removeItem('voterName');
   renderHubLogin();
 };
+window.handleAvatarUpload=function(input){
+  const file = input.files[0];
+  if(!file) return;
+  if(file.size > 500000) return showToast('Immagine troppo grande (max 500KB)');
+  const reader = new FileReader();
+  reader.onload = function(e){
+    // Resize to 80x80 to save space
+    const img = new Image();
+    img.onload = function(){
+      const canvas = document.createElement('canvas');
+      canvas.width = 80; canvas.height = 80;
+      const ctx = canvas.getContext('2d');
+      // Crop to square center
+      const size = Math.min(img.width, img.height);
+      const sx = (img.width - size) / 2;
+      const sy = (img.height - size) / 2;
+      ctx.drawImage(img, sx, sy, size, size, 0, 0, 80, 80);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+      localStorage.setItem('userAvatar', dataUrl);
+      renderHubLogin();
+      showToast('Foto profilo aggiornata! 📷');
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+};
+function getUserAvatarHtml(name, size){
+  size = size || 24;
+  const avatar = localStorage.getItem('userAvatar');
+  const myName = getVoterName();
+  if(avatar && name === myName){
+    return `<img src="${avatar}" style="width:${size}px;height:${size}px;border-radius:50%;border:1.5px solid var(--border);object-fit:cover;vertical-align:middle" alt="">`;
+  }
+  return `<span style="font-size:${size*0.7}px;vertical-align:middle">👤</span>`;
+}
 // Render on load
 renderHubLogin();
 
@@ -588,9 +670,10 @@ async function loadHome(autoVoter){
   // Show voter banner
   const bannerWrap = document.getElementById('voter-banner-wrap');
   if(voterName){
+    const avHtml = getUserAvatarHtml(voterName, 32);
     bannerWrap.innerHTML=`<div class="voter-banner">
       <div>
-        <div class="voter-banner-name">👤 Ciao, ${esc(voterName)}!</div>
+        <div class="voter-banner-name">${avHtml} Ciao, ${esc(voterName)}!</div>
         <div class="voter-banner-sub">Clicca un sondaggio per votare. I tuoi voti vengono salvati automaticamente.</div>
       </div>
     </div>`;
@@ -1334,7 +1417,7 @@ function initChat(){
       wrap.style.alignItems=isMe?'flex-end':'flex-start';
       if(!isMe){
         const nameEl=document.createElement('div'); nameEl.className='msg-name';
-        nameEl.textContent=m.name||'Anonimo'; wrap.appendChild(nameEl);
+        nameEl.innerHTML=getUserAvatarHtml(m.name,16)+' '+(m.name||'Anonimo'); wrap.appendChild(nameEl);
       }
       const bubble=document.createElement('div');
       bubble.className='msg '+(isMe?'msg-user':'msg-other');
@@ -1489,7 +1572,6 @@ function initEventi(){
       });
       if(!_isDragging) renderCal();
       if(calSelectedDate && calMode==='eventi') renderEventoList(calSelectedDate);
-      renderUpcoming();
     });
   }
   if(!_dispoUnsub){
@@ -2211,31 +2293,6 @@ function renderEventoList(dateStr){
   itemsEl.innerHTML=html;
 }
 
-function renderUpcoming(){
-  const el=document.getElementById('eventi-upcoming');
-  if(!el) return;
-  const tk=todayKey();
-  const future=Object.entries(_eventiCache)
-    .filter(([k])=>k>=tk)
-    .sort((a,b)=>a[0].localeCompare(b[0]));
-  if(future.length===0){ el.innerHTML='<div style="color:var(--muted);font-size:1.1rem">Nessun evento in programma.</div>'; return; }
-  el.innerHTML='';
-  future.slice(0,10).forEach(([dateStr,evs])=>{
-    const [y,m,d]=dateStr.split('-');
-    const dt=new Date(+y,+m-1,+d);
-    const dayLabel=dt.toLocaleDateString('it-IT',{weekday:'short',day:'numeric',month:'short'});
-    const holiday = _holidaysCache[dateStr];
-    evs.forEach(ev=>{
-      const div=document.createElement('div'); div.className='upcoming-evento';
-      div.innerHTML=`<div class="upcoming-date-badge">${dayLabel}${holiday?' 🎉':''}</div>
-        <div class="upcoming-title">${esc(ev.title||'Evento')}</div>
-        <div class="upcoming-time">${esc(ev.time||'')}</div>`;
-      div.onclick=()=>{ calYear=+y; calMonth=+m-1; calMode='eventi'; window.setCalMode('eventi'); renderCal(); selectCalDay(+y,+m-1,+d); };
-      el.appendChild(div);
-    });
-  });
-}
-
 window.calPrev=function(){ calMonth--; if(calMonth<0){calMonth=11;calYear--;} calSelectedDate=null; _holidaysCache={..._holidaysCache,...getItalianHolidays(calYear)}; renderCal(); document.getElementById('eventi-day-list').style.display='none'; document.getElementById('eventi-form-wrap').style.display='none'; document.getElementById('dispo-day-detail').style.display='none'; document.getElementById('dispo-time-overlay').style.display='none'; document.getElementById('recurring-dispo-overlay').style.display='none'; };
 window.calNext=function(){ calMonth++; if(calMonth>11){calMonth=0;calYear++;} calSelectedDate=null; _holidaysCache={..._holidaysCache,...getItalianHolidays(calYear)}; renderCal(); document.getElementById('eventi-day-list').style.display='none'; document.getElementById('eventi-form-wrap').style.display='none'; document.getElementById('dispo-day-detail').style.display='none'; document.getElementById('dispo-time-overlay').style.display='none'; document.getElementById('recurring-dispo-overlay').style.display='none'; };
 
@@ -2299,6 +2356,9 @@ window.submitEvento=async function(){
     } else {
       if(!calSelectedDate) return showToast('Seleziona un giorno');
       await push(ref(db,'eventi'),{date:calSelectedDate,title,time,note,author,ts:Date.now()});
+      // Auto-mark as seen so user doesn't get badge for own event
+      const sec=_badgeSections['screen-eventi'];
+      if(sec) _setSeenCount(sec.key, sec.count+1);
       showToast('Evento salvato! 📅');
     }
     _editingEventoId = null;
@@ -2470,7 +2530,33 @@ window.goTo = function(id){
   if(id==='screen-eventi') initEventi();
   if(id==='screen-giochi'){ initGiochi(); drawWheel(); }
   if(id==='screen-lista') initLista();
+  if(id==='screen-citazioni') initCitazioni();
 };
+
+// ── ANDROID BACK BUTTON (HISTORY API) ─────────────────
+window._currentScreen = 'screen-hub';
+history.replaceState({screen:'screen-hub'}, '', '');
+window.addEventListener('popstate', function(e){
+  // Map screens to their parent
+  const parentMap = {
+    'screen-home':'screen-hub', 'screen-create':'screen-home',
+    'screen-vote':'screen-home', 'screen-results':'screen-home',
+    'screen-edit':'screen-results', 'screen-eventi':'screen-hub',
+    'screen-bacheca':'screen-hub', 'screen-giochi':'screen-hub',
+    'screen-lista':'screen-hub', 'screen-citazioni':'screen-hub'
+  };
+  const cur = window._currentScreen || 'screen-hub';
+  if(cur === 'screen-hub'){
+    // Already at hub, let the browser handle it (exit app)
+    return;
+  }
+  const target = (e.state && e.state.screen) || parentMap[cur] || 'screen-hub';
+  window._popstateNav = true;
+  if(target === 'screen-home'){ loadHome(); }
+  else { goTo(target); }
+  // Push a new state so next back press works too
+  history.pushState({screen:target}, '', '');
+});
 
 // ── BACHECA ───────────────────────────────────────────
 function formatBachecaTime(ts){
@@ -2499,7 +2585,7 @@ function renderBacheca(data){
     const div=document.createElement('div'); div.className='bacheca-post';
     div.innerHTML=`
       <div class="bacheca-author">
-        <span>👤</span>
+        <span>${getUserAvatarHtml(post.author, 22)}</span>
         <span class="bacheca-author-name">${esc(post.author||'Anonimo')}</span>
         <span class="bacheca-time">${formatBachecaTime(post.ts)}</span>
       </div>
@@ -2517,6 +2603,9 @@ window.postBacheca=async function(){
   try{
     await push(ref(db,'bacheca'),{author,text,ts:Date.now()});
     inp.value='';
+    // Auto-mark as seen so user doesn't get badge for own post
+    const sec=_badgeSections['screen-bacheca'];
+    if(sec) _setSeenCount(sec.key, sec.count+1);
     showToast('Post pubblicato! 📌');
   }catch(e){
     showToast('Errore pubblicazione: '+e.message);
@@ -2553,6 +2642,7 @@ const _badgeSections = {
   'screen-bacheca': {key:'_seen_bacheca', badgeId:'hub-bacheca-badge', count:0},
   'screen-giochi': {key:'_seen_giochi', badgeId:'hub-giochi-badge', count:0},
   'screen-lista': {key:'_seen_lista', badgeId:'hub-lista-badge', count:0},
+  'screen-citazioni': {key:'_seen_citazioni', badgeId:'hub-citazioni-badge', count:0},
 };
 
 function _getSeenCount(key){ return parseInt(localStorage.getItem(key)||'0',10); }
@@ -2722,6 +2812,9 @@ window.submitGioco=async function(){
     } else {
       // Create new
       await push(ref(db,'giochi'),{title,icon,desc,tags,rules,author,ts:Date.now()});
+      // Auto-mark as seen so user doesn't get badge for own game
+      const sec=_badgeSections['screen-giochi'];
+      if(sec) _setSeenCount(sec.key, sec.count+1);
       showToast('Gioco aggiunto! 🎲');
     }
     // Reset form
@@ -2822,6 +2915,9 @@ window.submitLista=async function(){
     document.getElementById('lista-title').value='';
     document.getElementById('lista-items').value='';
     document.getElementById('lista-form-wrap').style.display='none';
+    // Auto-mark as seen so user doesn't get badge for own list
+    const sec=_badgeSections['screen-lista'];
+    if(sec) _setSeenCount(sec.key, sec.count+1);
     showToast('Lista creata! 🗳');
   }catch(e){
     showToast('Errore creazione: '+e.message);
@@ -2869,6 +2965,119 @@ window.deleteLista=async function(id){
     console.error('deleteLista error:',e);
   }
 };
+
+// ── CITAZIONI ──────────────────────────────────────────
+let _citazioniUnsub = null;
+let _citazioniCache = {};
+let _editingCitazioneId = null;
+
+function initCitazioni(){
+  if(_citazioniUnsub) return;
+  _citazioniUnsub = onValue(ref(db,'citazioni'), (snap)=>{
+    _citazioniCache = snap.val()||{};
+    renderCitazioni();
+    const count = Object.keys(_citazioniCache).length;
+    _updateHubBadge('screen-citazioni', count);
+  });
+}
+
+function renderCitazioni(){
+  const el = document.getElementById('citazioni-container');
+  if(!el) return;
+  const entries = Object.entries(_citazioniCache).sort((a,b)=>(b[1].ts||0)-(a[1].ts||0));
+  if(entries.length===0){
+    el.innerHTML='<div class="empty-state"><div style="font-size:2.5rem;margin-bottom:0.8rem">💬</div>Nessuna citazione ancora.<br>Aggiungi la prima perla del gruppo!</div>';
+    return;
+  }
+  el.innerHTML='';
+  entries.forEach(([id, cit], idx)=>{
+    const div = document.createElement('div');
+    div.className = 'citazione-item';
+    div.style.animationDelay = (idx * 0.05) + 's';
+    const dt = cit.ts ? new Date(cit.ts) : null;
+    const dateStr = dt ? dt.toLocaleDateString('it-IT',{day:'2-digit',month:'short',year:'numeric'}) : '';
+    const timeStr = dt ? dt.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'}) : '';
+    div.innerHTML=`
+      <div class="citazione-quote">"${esc(cit.text||'')}"</div>
+      <div class="citazione-footer">
+        <div class="citazione-who">— ${esc(cit.who||'Anonimo')}</div>
+        <div class="citazione-meta">${dateStr} ${timeStr} · 📝 ${esc(cit.addedBy||'')}</div>
+      </div>
+      <div class="citazione-actions">
+        <button class="evento-del" onclick="window.editCitazione('${id}')" title="Modifica" style="position:static">✏️</button>
+        <button class="evento-del" onclick="window.deleteCitazione('${id}')" title="Elimina" style="position:static">✖</button>
+      </div>`;
+    el.appendChild(div);
+  });
+}
+
+window.submitCitazione=async function(){
+  const text = document.getElementById('citazione-text').value.trim();
+  const who = document.getElementById('citazione-who').value.trim();
+  if(!text) return showToast('Scrivi la citazione!');
+  if(!who) return showToast('Chi l\'ha detta?');
+  const addedBy = getVoterName()||'Anonimo';
+  const btn = document.getElementById('btn-submit-citazione');
+  try{
+    btn.disabled=true; btn.innerHTML='<span class="spinner"></span>Salvataggio...';
+    await push(ref(db,'citazioni'),{text, who, addedBy, ts:Date.now()});
+    document.getElementById('citazione-text').value='';
+    document.getElementById('citazione-who').value='';
+    // Auto-mark as seen so user doesn't get badge for own citazione
+    const sec=_badgeSections['screen-citazioni'];
+    if(sec) _setSeenCount(sec.key, sec.count+1);
+    showToast('Citazione aggiunta! 💬');
+  }catch(e){
+    showToast('Errore: '+e.message);
+    console.error('submitCitazione error:',e);
+  }finally{
+    btn.disabled=false; btn.textContent='📝 Pubblica';
+  }
+};
+
+window.editCitazione=function(id){
+  const cit = _citazioniCache[id];
+  if(!cit) return showToast('Citazione non trovata');
+  _editingCitazioneId = id;
+  document.getElementById('citazione-edit-text').value = cit.text||'';
+  document.getElementById('citazione-edit-who').value = cit.who||'';
+  document.getElementById('citazione-edit-overlay').style.display = 'flex';
+};
+
+window.saveCitazioneEdit=async function(){
+  if(!_editingCitazioneId) return;
+  const text = document.getElementById('citazione-edit-text').value.trim();
+  const who = document.getElementById('citazione-edit-who').value.trim();
+  if(!text) return showToast('Scrivi la citazione!');
+  if(!who) return showToast('Chi l\'ha detta?');
+  try{
+    await update(ref(db,`citazioni/${_editingCitazioneId}`),{text, who});
+    document.getElementById('citazione-edit-overlay').style.display='none';
+    _editingCitazioneId = null;
+    showToast('Citazione aggiornata! ✏️');
+  }catch(e){
+    showToast('Errore: '+e.message);
+    console.error('saveCitazioneEdit error:',e);
+  }
+};
+
+window.deleteCitazione=async function(id){
+  if(!confirm('Eliminare questa citazione?')) return;
+  try{
+    await remove(ref(db,`citazioni/${id}`));
+    showToast('Citazione eliminata');
+  }catch(e){
+    showToast('Errore: '+e.message);
+    console.error('deleteCitazione error:',e);
+  }
+};
+
+// Badge watcher: CITAZIONI
+onValue(ref(db,'citazioni'),(snap)=>{
+  const data=snap.val()||{};
+  const count=Object.keys(data).length;
+  _updateHubBadge('screen-citazioni',count);
+});
 
 // ── RIEPILOGO DISPONIBILITÀ ─────────────────────────
 function renderRiepilogo(){
