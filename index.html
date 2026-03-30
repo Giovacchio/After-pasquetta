@@ -55,6 +55,12 @@
         <span class="hub-tile-sub">Organizza cibo e materiale</span>
         <div class="hub-tile-badge" id="hub-lista-badge">0</div>
       </div>
+      <div class="hub-tile" onclick="goTo('screen-citazioni')">
+        <span class="hub-tile-icon">💬</span>
+        <span class="hub-tile-label">Citazioni</span>
+        <span class="hub-tile-sub">Le perle del gruppo</span>
+        <div class="hub-tile-badge" id="hub-citazioni-badge">0</div>
+      </div>
     </div>
 
     <!-- CHAT IN HUB -->
@@ -572,7 +578,8 @@ function renderHubLogin(){
   const wrap = document.getElementById('hub-login-wrap');
   if(!wrap) return;
   const name = getVoterName();
-  const avatar = localStorage.getItem('userAvatar');
+  const sName = name ? sanitize(name) : '';
+  const avatar = (_profilesCache[sName]||{}).avatar || '';
   if(name){
     const avatarHtml = avatar
       ? `<img src="${avatar}" class="hub-avatar" alt="avatar">`
@@ -626,36 +633,49 @@ window.handleAvatarUpload=function(input){
   const file = input.files[0];
   if(!file) return;
   if(file.size > 500000) return showToast('Immagine troppo grande (max 500KB)');
+  const myName = getVoterName();
+  if(!myName) return showToast('Inserisci prima il tuo nome');
   const reader = new FileReader();
   reader.onload = function(e){
-    // Resize to 80x80 to save space
     const img = new Image();
     img.onload = function(){
       const canvas = document.createElement('canvas');
       canvas.width = 80; canvas.height = 80;
       const ctx = canvas.getContext('2d');
-      // Crop to square center
       const size = Math.min(img.width, img.height);
       const sx = (img.width - size) / 2;
       const sy = (img.height - size) / 2;
       ctx.drawImage(img, sx, sy, size, size, 0, 0, 80, 80);
       const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-      localStorage.setItem('userAvatar', dataUrl);
-      renderHubLogin();
-      showToast('Foto profilo aggiornata! 📷');
+      // Save to Firebase so everyone sees it
+      const sName = sanitize(myName);
+      set(ref(db,`profiles/${sName}/avatar`), dataUrl).then(()=>{
+        renderHubLogin();
+        showToast('Foto profilo aggiornata! 📷');
+      }).catch(err=> showToast('Errore: '+err.message));
     };
     img.src = e.target.result;
   };
   reader.readAsDataURL(file);
 };
-function getUserAvatarHtml(name, size){
-  size = size || 24;
-  const avatar = localStorage.getItem('userAvatar');
-  const myName = getVoterName();
-  if(avatar && name === myName){
-    return `<img src="${avatar}" style="width:${size}px;height:${size}px;border-radius:50%;border:1.5px solid var(--border);object-fit:cover;vertical-align:middle" alt="">`;
+
+// ── PROFILES CACHE (avatars for all users) ──
+let _profilesCache = {}; // { sanitizedName: { avatar: 'data:...' } }
+onValue(ref(db,'profiles'), (snap)=>{
+  _profilesCache = snap.val()||{};
+  // Re-render hub login to update avatar
+  renderHubLogin();
+});
+
+function getAvatarHtml(name, size){
+  size = size || 22;
+  if(!name) return `<span style="font-size:${Math.round(size*0.7)}px;vertical-align:middle">👤</span>`;
+  const sName = sanitize(name);
+  const profile = _profilesCache[sName];
+  if(profile && profile.avatar){
+    return `<img src="${profile.avatar}" style="width:${size}px;height:${size}px;border-radius:50%;border:1.5px solid var(--border);object-fit:cover;vertical-align:middle" alt="">`;
   }
-  return `<span style="font-size:${size*0.7}px;vertical-align:middle">👤</span>`;
+  return `<span style="font-size:${Math.round(size*0.7)}px;vertical-align:middle">👤</span>`;
 }
 // Render on load
 renderHubLogin();
@@ -670,7 +690,7 @@ async function loadHome(autoVoter){
   // Show voter banner
   const bannerWrap = document.getElementById('voter-banner-wrap');
   if(voterName){
-    const avHtml = getUserAvatarHtml(voterName, 32);
+    const avHtml = getAvatarHtml(voterName, 32);
     bannerWrap.innerHTML=`<div class="voter-banner">
       <div>
         <div class="voter-banner-name">${avHtml} Ciao, ${esc(voterName)}!</div>
@@ -711,7 +731,7 @@ async function loadHome(autoVoter){
       div.innerHTML=`<div class="poll-num">${i+1}</div>
         <div style="flex:1">
           <div class="poll-item-q">${esc(p.title||'Sondaggio')}</div>
-          <div class="poll-item-meta">${qCount} domand${qCount===1?'a':'e'} · ${totalVotes} voti totali · da ${esc(p.creator||'anonimo')}${voted?` · <span style="color:var(--accent);font-weight:600">✓ hai già votato</span>`:''}</div>
+          <div class="poll-item-meta">${qCount} domand${qCount===1?'a':'e'} · ${totalVotes} voti totali · da ${getAvatarHtml(p.creator,16)} ${esc(p.creator||'anonimo')}${voted?` · <span style="color:var(--accent);font-weight:600">✓ hai già votato</span>`:''}</div>
         </div>
         <div style="display:flex;flex-direction:column;gap:0.4rem;align-items:flex-end">
           <button class="btn btn-primary btn-vote-home" style="font-size:0.8rem;padding:0.4rem 0.9rem;white-space:nowrap">${voted?'Rivota':'Vota'}</button>
@@ -1248,7 +1268,7 @@ function renderResults(content,poll,pollId){
       <button class="btn btn-secondary" onclick="loadHome()" style="font-size:0.8rem;padding:0.4rem 0.9rem">← Sondaggi</button>
     </div>
     <h1>${esc(poll.title)}</h1>
-    <p class="subtitle">Creato da ${esc(poll.creator||'anonimo')} · ${qKeys.length} domand${qKeys.length===1?'a':'e'}</p>
+    <p class="subtitle">Creato da ${getAvatarHtml(poll.creator,18)} ${esc(poll.creator||'anonimo')} · ${qKeys.length} domand${qKeys.length===1?'a':'e'}</p>
     <div class="q-tabs" id="q-tabs"></div>
     <div id="q-result-panel"></div>
     <div class="card">
@@ -1322,7 +1342,7 @@ function renderQPanel(qKeys,questions,idx){
       Object.keys(votes).forEach(voter=>{
         const v=votes[voter];
         const d=document.createElement('div'); d.className='voter-row';
-        d.innerHTML=`<span style="flex:1;font-weight:600">${esc(voter)}</span><span style="color:var(--text);font-size:0.88rem;max-width:65%;text-align:right">${typeof v==='string'?esc(v):esc(JSON.stringify(v))}</span>`;
+        d.innerHTML=`<span style="flex:1;font-weight:600">${getAvatarHtml(voter,18)} ${esc(voter)}</span><span style="color:var(--text);font-size:0.88rem;max-width:65%;text-align:right">${typeof v==='string'?esc(v):esc(JSON.stringify(v))}</span>`;
         ta.appendChild(d);
       });
     }
@@ -1354,10 +1374,10 @@ function renderQPanel(qKeys,questions,idx){
       const d=document.createElement('div'); d.className='voter-row';
       if(Array.isArray(v)){
         const tags=v.map(i=>`<span class="vote-tag" style="background:${COLORS[i%COLORS.length]}22;color:${COLORS[i%COLORS.length]}">${esc(q.options[i]||String(i))}</span>`).join(' ');
-        d.innerHTML=`<span style="flex:1">${esc(voter)}</span>${tags}`;
+        d.innerHTML=`<span style="flex:1">${getAvatarHtml(voter,18)} ${esc(voter)}</span>${tags}`;
       } else {
         const color=COLORS[v%COLORS.length];
-        d.innerHTML=`<span style="flex:1">${esc(voter)}</span><span class="vote-tag" style="background:${color}22;color:${color}">${esc(q.options[v]||String(v))}</span>`;
+        d.innerHTML=`<span style="flex:1">${getAvatarHtml(voter,18)} ${esc(voter)}</span><span class="vote-tag" style="background:${color}22;color:${color}">${esc(q.options[v]||String(v))}</span>`;
       }
       vd.appendChild(d);
     });}
@@ -1417,7 +1437,7 @@ function initChat(){
       wrap.style.alignItems=isMe?'flex-end':'flex-start';
       if(!isMe){
         const nameEl=document.createElement('div'); nameEl.className='msg-name';
-        nameEl.innerHTML=getUserAvatarHtml(m.name,16)+' '+(m.name||'Anonimo'); wrap.appendChild(nameEl);
+        nameEl.innerHTML=getAvatarHtml(m.name,16)+' '+(m.name||'Anonimo'); wrap.appendChild(nameEl);
       }
       const bubble=document.createElement('div');
       bubble.className='msg '+(isMe?'msg-user':'msg-other');
@@ -2168,7 +2188,7 @@ function renderDispoDetail(dateStr){
     if(groups[g.key].length===0) return;
     html+=`<div style="margin-bottom:0.6rem"><div style="font-size:0.9rem;font-family:sans-serif;color:var(--muted);margin-bottom:0.25rem">${g.icon} ${g.label} (${groups[g.key].length})</div><div>`;
     groups[g.key].forEach(p=>{
-      html+=`<span class="avail-person"><span class="avail-legend-dot" style="background:${DISPO_STATUS_COLORS[g.key]}"></span>${esc(p.name)}`;
+      html+=`<span class="avail-person"><span class="avail-legend-dot" style="background:${DISPO_STATUS_COLORS[g.key]}"></span>${getAvatarHtml(p.name,16)} ${esc(p.name)}`;
       if(p.time) html+=`<span style="font-size:0.85rem;color:var(--muted);font-family:sans-serif;margin-left:0.3rem">${esc(p.time)}</span>`;
       html+=`</span>`;
     });
@@ -2267,7 +2287,7 @@ function renderEventoList(dateStr){
       if(groups[g.key].length===0) return;
       html+=`<div style="margin-bottom:0.3rem"><span style="font-size:0.85rem;font-family:sans-serif;color:var(--muted)">${g.icon} ${g.label}:</span> `;
       groups[g.key].forEach(p=>{
-        html+=`<span class="avail-person"><span class="avail-legend-dot" style="background:${DISPO_STATUS_COLORS[g.key]}"></span>${esc(p.name)}`;
+        html+=`<span class="avail-person"><span class="avail-legend-dot" style="background:${DISPO_STATUS_COLORS[g.key]}"></span>${getAvatarHtml(p.name,16)} ${esc(p.name)}`;
         if(p.time) html+=`<span style="font-size:0.8rem;color:var(--muted);margin-left:0.2rem">${esc(p.time)}</span>`;
         html+=`</span>`;
       });
@@ -2283,7 +2303,7 @@ function renderEventoList(dateStr){
       html+=`<div class="evento-item"><div class="evento-color-bar"></div>
         <div class="evento-body">
           <div class="evento-title">${esc(ev.title||'Evento')}</div>
-          <div class="evento-meta">${ev.time?'🕐 '+esc(ev.time):''} · 👤 ${esc(ev.author||'Anonimo')}</div>
+          <div class="evento-meta">${ev.time?'🕐 '+esc(ev.time):''} · ${getAvatarHtml(ev.author,16)} ${esc(ev.author||'Anonimo')}</div>
           ${ev.note?`<div class="evento-note">${esc(ev.note)}</div>`:''}
         </div>
         <div style="display:flex;flex-direction:column;gap:0.3rem;position:absolute;top:0.4rem;right:0.4rem"><button class="evento-del" onclick="window.editEvento('${ev.id}')" title="Modifica" style="position:static">✏️</button><button class="evento-del" onclick="window.deleteEvento('${ev.id}')" title="Elimina" style="position:static">✖</button></div>
@@ -2356,9 +2376,7 @@ window.submitEvento=async function(){
     } else {
       if(!calSelectedDate) return showToast('Seleziona un giorno');
       await push(ref(db,'eventi'),{date:calSelectedDate,title,time,note,author,ts:Date.now()});
-      // Auto-mark as seen so user doesn't get badge for own event
-      const sec=_badgeSections['screen-eventi'];
-      if(sec) _setSeenCount(sec.key, sec.count+1);
+      _selfActionPending['screen-eventi']=true;
       showToast('Evento salvato! 📅');
     }
     _editingEventoId = null;
@@ -2585,7 +2603,7 @@ function renderBacheca(data){
     const div=document.createElement('div'); div.className='bacheca-post';
     div.innerHTML=`
       <div class="bacheca-author">
-        <span>${getUserAvatarHtml(post.author, 22)}</span>
+        <span>${getAvatarHtml(post.author, 22)}</span>
         <span class="bacheca-author-name">${esc(post.author||'Anonimo')}</span>
         <span class="bacheca-time">${formatBachecaTime(post.ts)}</span>
       </div>
@@ -2603,9 +2621,7 @@ window.postBacheca=async function(){
   try{
     await push(ref(db,'bacheca'),{author,text,ts:Date.now()});
     inp.value='';
-    // Auto-mark as seen so user doesn't get badge for own post
-    const sec=_badgeSections['screen-bacheca'];
-    if(sec) _setSeenCount(sec.key, sec.count+1);
+    _selfActionPending['screen-bacheca']=true;
     showToast('Post pubblicato! 📌');
   }catch(e){
     showToast('Errore pubblicazione: '+e.message);
@@ -2645,6 +2661,9 @@ const _badgeSections = {
   'screen-citazioni': {key:'_seen_citazioni', badgeId:'hub-citazioni-badge', count:0},
 };
 
+// Flag: when user adds something, suppress next badge update for that section
+const _selfActionPending = {};
+
 function _getSeenCount(key){ return parseInt(localStorage.getItem(key)||'0',10); }
 function _setSeenCount(key,n){ localStorage.setItem(key, String(n)); }
 
@@ -2652,6 +2671,14 @@ function _updateHubBadge(sectionScreen, currentCount){
   const sec = _badgeSections[sectionScreen];
   if(!sec) return;
   sec.count = currentCount;
+  // If user just added something in this section, auto-mark as seen
+  if(_selfActionPending[sectionScreen]){
+    delete _selfActionPending[sectionScreen];
+    _setSeenCount(sec.key, currentCount);
+    const badge = document.getElementById(sec.badgeId);
+    if(badge) badge.classList.remove('show');
+    return;
+  }
   const seen = _getSeenCount(sec.key);
   const diff = Math.max(0, currentCount - seen);
   const badge = document.getElementById(sec.badgeId);
@@ -2726,7 +2753,7 @@ function renderCustomGiochi(data){
           ${g.tags?`<div class="gioco-tags">${g.tags.split(',').map(t=>`<span class="gioco-tag">${esc(t.trim())}</span>`).join('')}</div>`:''}
           <h3>Come si gioca</h3>
           <p style="white-space:pre-wrap">${esc(g.rules||'Nessuna regola specificata.')}</p>
-          <div style="margin-top:0.8rem;font-size:0.85rem;color:var(--muted);font-family:sans-serif">Aggiunto da ${esc(g.author||'Anonimo')}</div>
+          <div style="margin-top:0.8rem;font-size:0.85rem;color:var(--muted);font-family:sans-serif">Aggiunto da ${getAvatarHtml(g.author,16)} ${esc(g.author||'Anonimo')}</div>
           <div style="margin-top:0.5rem;display:flex;gap:0.5rem">
             <button class="btn btn-secondary" style="font-size:0.85rem;padding:0.3rem 0.7rem" onclick="event.stopPropagation();window.editGioco('${id}')">✏️ Modifica</button>
             <button class="btn btn-danger" style="font-size:0.85rem;padding:0.3rem 0.7rem" onclick="event.stopPropagation();window.deleteGioco('${id}')">🗑 Elimina</button>
@@ -2812,9 +2839,7 @@ window.submitGioco=async function(){
     } else {
       // Create new
       await push(ref(db,'giochi'),{title,icon,desc,tags,rules,author,ts:Date.now()});
-      // Auto-mark as seen so user doesn't get badge for own game
-      const sec=_badgeSections['screen-giochi'];
-      if(sec) _setSeenCount(sec.key, sec.count+1);
+      _selfActionPending['screen-giochi']=true;
       showToast('Gioco aggiunto! 🎲');
     }
     // Reset form
@@ -2877,12 +2902,12 @@ function renderListe(){
       return `<div style="display:flex;align-items:center;gap:0.6rem;padding:0.4rem 0;border-bottom:1px dashed var(--bg2)">
         <button onclick="window.toggleListaItem('${id}','${k}')" style="background:${isClaimed?'var(--accent)':'var(--bg2)'};border:2px solid var(--border);border-radius:4px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1rem;flex-shrink:0">${isClaimed?'✓':''}</button>
         <span style="flex:1;${isClaimed?'text-decoration:line-through;color:var(--muted)':''}">${esc(it.name||'')}</span>
-        ${isClaimed?`<span style="font-size:0.85rem;color:var(--muted);font-family:sans-serif">👤 ${esc(it.who)}</span>`:''}
+        ${isClaimed?`<span style="font-size:0.85rem;color:var(--muted);font-family:sans-serif">${getAvatarHtml(it.who,18)} ${esc(it.who)}</span>`:''}
       </div>`;
     }).join('');
     div.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.8rem">
       <div><div class="section-title">${esc(lista.title||'Lista')}</div>
-      <div style="font-size:0.85rem;color:var(--muted);font-family:sans-serif">${claimed}/${itemKeys.length} assegnati · da ${esc(lista.author||'Anonimo')}</div></div>
+      <div style="font-size:0.85rem;color:var(--muted);font-family:sans-serif">${claimed}/${itemKeys.length} assegnati · da ${getAvatarHtml(lista.author,16)} ${esc(lista.author||'Anonimo')}</div></div>
       <button class="evento-del" onclick="window.deleteLista('${id}')" title="Elimina" style="position:static">✖</button>
     </div>
     <div>${itemsHtml}</div>
@@ -2915,9 +2940,7 @@ window.submitLista=async function(){
     document.getElementById('lista-title').value='';
     document.getElementById('lista-items').value='';
     document.getElementById('lista-form-wrap').style.display='none';
-    // Auto-mark as seen so user doesn't get badge for own list
-    const sec=_badgeSections['screen-lista'];
-    if(sec) _setSeenCount(sec.key, sec.count+1);
+    _selfActionPending['screen-lista']=true;
     showToast('Lista creata! 🗳');
   }catch(e){
     showToast('Errore creazione: '+e.message);
@@ -3001,7 +3024,7 @@ function renderCitazioni(){
       <div class="citazione-quote">"${esc(cit.text||'')}"</div>
       <div class="citazione-footer">
         <div class="citazione-who">— ${esc(cit.who||'Anonimo')}</div>
-        <div class="citazione-meta">${dateStr} ${timeStr} · 📝 ${esc(cit.addedBy||'')}</div>
+        <div class="citazione-meta">${dateStr} ${timeStr} · ${getAvatarHtml(cit.addedBy,14)} ${esc(cit.addedBy||'')}</div>
       </div>
       <div class="citazione-actions">
         <button class="evento-del" onclick="window.editCitazione('${id}')" title="Modifica" style="position:static">✏️</button>
@@ -3023,9 +3046,7 @@ window.submitCitazione=async function(){
     await push(ref(db,'citazioni'),{text, who, addedBy, ts:Date.now()});
     document.getElementById('citazione-text').value='';
     document.getElementById('citazione-who').value='';
-    // Auto-mark as seen so user doesn't get badge for own citazione
-    const sec=_badgeSections['screen-citazioni'];
-    if(sec) _setSeenCount(sec.key, sec.count+1);
+    _selfActionPending['screen-citazioni']=true;
     showToast('Citazione aggiunta! 💬');
   }catch(e){
     showToast('Errore: '+e.message);
