@@ -1,4 +1,4 @@
-const CACHE = 'after-pasquetta-v28';
+const CACHE = 'after-pasquetta-v29';
 const ASSETS = ['./', './index.html', './style.css', './manifest.json', './icon-192.png', './icon-512.png'];
 
 // Ricevi il messaggio dall'app per attivarsi subito

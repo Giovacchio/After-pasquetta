@@ -411,6 +411,11 @@
         <textarea id="citazione-text" placeholder="Scrivi la citazione..." maxlength="400" style="width:100%;margin-bottom:0.8rem;min-height:60px"></textarea>
         <label style="margin-bottom:0.3rem">Chi l'ha detta?</label>
         <input type="text" id="citazione-who" placeholder="Nome della persona" maxlength="50" style="margin-bottom:0.8rem">
+        <label style="margin-bottom:0.3rem">Quando? (opzionale)</label>
+        <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.8rem;flex-wrap:wrap">
+          <input type="date" id="citazione-date" style="flex:1;min-width:130px;background:var(--bg2);border:2px solid var(--border);border-radius:4px;color:var(--text);font-family:'VT323',monospace;font-size:1.1rem;padding:0.4rem;outline:none;">
+          <input type="time" id="citazione-time" style="flex:0.6;min-width:90px;background:var(--bg2);border:2px solid var(--border);border-radius:4px;color:var(--text);font-family:'VT323',monospace;font-size:1.1rem;padding:0.4rem;outline:none;">
+        </div>
         <div class="btn-row">
           <button class="btn btn-primary" id="btn-submit-citazione" onclick="window.submitCitazione()">📝 Pubblica</button>
           <span style="font-size:0.95rem;color:var(--muted);font-family:sans-serif" id="citazione-name-hint"></span>
@@ -429,6 +434,11 @@
       <textarea id="citazione-edit-text" maxlength="400" style="margin-bottom:0.8rem;min-height:60px"></textarea>
       <label>Chi l'ha detta?</label>
       <input type="text" id="citazione-edit-who" maxlength="50" style="margin-bottom:0.8rem">
+      <label>Quando? (opzionale)</label>
+      <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.8rem;flex-wrap:wrap">
+        <input type="date" id="citazione-edit-date" style="flex:1;min-width:130px;background:var(--bg2);border:2px solid var(--border);border-radius:4px;color:var(--text);font-family:'VT323',monospace;font-size:1.1rem;padding:0.4rem;outline:none;">
+        <input type="time" id="citazione-edit-time" style="flex:0.6;min-width:90px;background:var(--bg2);border:2px solid var(--border);border-radius:4px;color:var(--text);font-family:'VT323',monospace;font-size:1.1rem;padding:0.4rem;outline:none;">
+      </div>
       <div class="btn-row">
         <button class="btn btn-primary" onclick="window.saveCitazioneEdit()">💾 Salva</button>
         <button class="btn btn-secondary" onclick="document.getElementById('citazione-edit-overlay').style.display='none'">Annulla</button>
@@ -3017,14 +3027,19 @@ function renderCitazioni(){
     const div = document.createElement('div');
     div.className = 'citazione-item';
     div.style.animationDelay = (idx * 0.05) + 's';
-    const dt = cit.ts ? new Date(cit.ts) : null;
-    const dateStr = dt ? dt.toLocaleDateString('it-IT',{day:'2-digit',month:'short',year:'numeric'}) : '';
-    const timeStr = dt ? dt.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'}) : '';
+    // When was it said (user-provided)
+    let whenHtml = '';
+    if(cit.whenDate){
+      const [wy,wm,wd] = cit.whenDate.split('-');
+      const wdt = new Date(+wy,+wm-1,+wd);
+      whenHtml = '📅 ' + wdt.toLocaleDateString('it-IT',{day:'numeric',month:'short',year:'numeric'});
+      if(cit.whenTime) whenHtml += ' · 🕐 ' + esc(cit.whenTime);
+    }
     div.innerHTML=`
       <div class="citazione-quote">"${esc(cit.text||'')}"</div>
       <div class="citazione-footer">
         <div class="citazione-who">— ${esc(cit.who||'Anonimo')}</div>
-        <div class="citazione-meta">${dateStr} ${timeStr} · ${getAvatarHtml(cit.addedBy,14)} ${esc(cit.addedBy||'')}</div>
+        <div class="citazione-meta">${whenHtml?whenHtml+' · ':''}${getAvatarHtml(cit.addedBy,14)} ${esc(cit.addedBy||'')}</div>
       </div>
       <div class="citazione-actions">
         <button class="evento-del" onclick="window.editCitazione('${id}')" title="Modifica" style="position:static">✏️</button>
@@ -3040,12 +3055,19 @@ window.submitCitazione=async function(){
   if(!text) return showToast('Scrivi la citazione!');
   if(!who) return showToast('Chi l\'ha detta?');
   const addedBy = getVoterName()||'Anonimo';
+  const whenDate = document.getElementById('citazione-date').value || '';
+  const whenTime = document.getElementById('citazione-time').value || '';
   const btn = document.getElementById('btn-submit-citazione');
   try{
     btn.disabled=true; btn.innerHTML='<span class="spinner"></span>Salvataggio...';
-    await push(ref(db,'citazioni'),{text, who, addedBy, ts:Date.now()});
+    const data = {text, who, addedBy, ts:Date.now()};
+    if(whenDate) data.whenDate = whenDate;
+    if(whenTime) data.whenTime = whenTime;
+    await push(ref(db,'citazioni'), data);
     document.getElementById('citazione-text').value='';
     document.getElementById('citazione-who').value='';
+    document.getElementById('citazione-date').value='';
+    document.getElementById('citazione-time').value='';
     _selfActionPending['screen-citazioni']=true;
     showToast('Citazione aggiunta! 💬');
   }catch(e){
@@ -3062,6 +3084,8 @@ window.editCitazione=function(id){
   _editingCitazioneId = id;
   document.getElementById('citazione-edit-text').value = cit.text||'';
   document.getElementById('citazione-edit-who').value = cit.who||'';
+  document.getElementById('citazione-edit-date').value = cit.whenDate||'';
+  document.getElementById('citazione-edit-time').value = cit.whenTime||'';
   document.getElementById('citazione-edit-overlay').style.display = 'flex';
 };
 
@@ -3069,10 +3093,13 @@ window.saveCitazioneEdit=async function(){
   if(!_editingCitazioneId) return;
   const text = document.getElementById('citazione-edit-text').value.trim();
   const who = document.getElementById('citazione-edit-who').value.trim();
+  const whenDate = document.getElementById('citazione-edit-date').value || '';
+  const whenTime = document.getElementById('citazione-edit-time').value || '';
   if(!text) return showToast('Scrivi la citazione!');
   if(!who) return showToast('Chi l\'ha detta?');
   try{
-    await update(ref(db,`citazioni/${_editingCitazioneId}`),{text, who});
+    const upd = {text, who, whenDate, whenTime};
+    await update(ref(db,`citazioni/${_editingCitazioneId}`), upd);
     document.getElementById('citazione-edit-overlay').style.display='none';
     _editingCitazioneId = null;
     showToast('Citazione aggiornata! ✏️');
