@@ -770,3 +770,33 @@ body.dark-mode .hub-countdown-timer { color:var(--accent); }
 .hub-countdown-date {
   font-size:0.9rem;color:var(--muted);font-family:sans-serif;margin-top:0.3rem;
 }
+
+/* ── JUKEBOX VOLUME ─────────────────────────────────── */
+.jukebox-volume-row {
+  display:flex;align-items:center;gap:0.5rem;padding:0 0.2rem;
+}
+.jukebox-vol-icon {
+  font-size:1.2rem;cursor:pointer;min-width:24px;text-align:center;
+  user-select:none;-webkit-user-select:none;
+}
+.jukebox-vol-slider {
+  flex:1;height:6px;-webkit-appearance:none;appearance:none;
+  background:var(--bg2);border-radius:3px;outline:none;
+  accent-color:var(--accent2);
+}
+body.dark-mode .jukebox-vol-slider { accent-color:var(--accent); }
+.jukebox-vol-slider::-webkit-slider-thumb {
+  -webkit-appearance:none;width:18px;height:18px;border-radius:50%;
+  background:var(--accent2);border:2px solid var(--card);cursor:pointer;
+  box-shadow:0 1px 3px rgba(0,0,0,0.2);
+}
+body.dark-mode .jukebox-vol-slider::-webkit-slider-thumb { background:var(--accent); }
+.jukebox-vol-slider::-moz-range-thumb {
+  width:18px;height:18px;border-radius:50%;
+  background:var(--accent2);border:2px solid var(--card);cursor:pointer;
+}
+body.dark-mode .jukebox-vol-slider::-moz-range-thumb { background:var(--accent); }
+.jukebox-vol-label {
+  font-family:'VT323',monospace;font-size:1.1rem;color:var(--muted);
+  min-width:36px;text-align:right;
+}

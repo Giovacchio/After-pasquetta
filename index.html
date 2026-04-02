@@ -516,6 +516,11 @@
           <button class="jukebox-ctrl-btn" onclick="window.jkNext()" title="Successiva">⏭</button>
           <button class="jukebox-ctrl-btn" onclick="window.jkShuffle()" title="Shuffle">🔀</button>
         </div>
+        <div class="jukebox-volume-row">
+          <span class="jukebox-vol-icon" id="jukebox-vol-icon" onclick="window.jkToggleMute()">🔊</span>
+          <input type="range" id="jukebox-vol-slider" min="0" max="100" value="80" class="jukebox-vol-slider" oninput="window.jkSetVolume(this.value)">
+          <span class="jukebox-vol-label" id="jukebox-vol-label">80%</span>
+        </div>
         <div class="jukebox-yt-wrap" id="jukebox-yt-wrap">
           <div id="jukebox-yt-player"></div>
         </div>
@@ -3477,7 +3482,7 @@ window.onYouTubeIframeAPIReady = function(){
       playsinline: 1
     },
     events: {
-      onReady: function(){ _jkReady = true; },
+      onReady: function(){ _jkReady = true; _jkPlayer.setVolume(_jkVolume); },
       onStateChange: function(e){
         if(e.data === YT.PlayerState.ENDED){
           window.jkNext();
@@ -3567,6 +3572,7 @@ window.jkPlayTrack = function(id){
   if(!_jkReady){ showToast('Player in caricamento...'); return; }
   _jkCurrentId = id;
   _jkPlayer.loadVideoById(track.videoId);
+  _jkPlayer.setVolume(_jkVolume);
   _jkPlaying = true;
   document.getElementById('jukebox-now-title').textContent = track.name||'Senza titolo';
   document.getElementById('jukebox-play-btn').textContent = '⏸';
@@ -3602,6 +3608,36 @@ window.jkShuffle = function(){
   let randomIdx;
   do { randomIdx = Math.floor(Math.random()*_jkPlaylist.length); } while(_jkPlaylist[randomIdx] === _jkCurrentId && _jkPlaylist.length > 1);
   window.jkPlayTrack(_jkPlaylist[randomIdx]);
+};
+
+let _jkVolume = 80;
+let _jkMuted = false;
+let _jkVolumeBeforeMute = 80;
+
+window.jkSetVolume = function(val){
+  val = parseInt(val);
+  _jkVolume = val;
+  _jkMuted = (val === 0);
+  if(_jkReady && _jkPlayer) _jkPlayer.setVolume(val);
+  const label = document.getElementById('jukebox-vol-label');
+  const icon = document.getElementById('jukebox-vol-icon');
+  if(label) label.textContent = val + '%';
+  if(icon) icon.textContent = val === 0 ? '🔇' : val < 40 ? '🔈' : val < 70 ? '🔉' : '🔊';
+};
+
+window.jkToggleMute = function(){
+  if(_jkMuted){
+    _jkMuted = false;
+    const slider = document.getElementById('jukebox-vol-slider');
+    if(slider) slider.value = _jkVolumeBeforeMute;
+    window.jkSetVolume(_jkVolumeBeforeMute);
+  } else {
+    _jkVolumeBeforeMute = _jkVolume;
+    _jkMuted = true;
+    const slider = document.getElementById('jukebox-vol-slider');
+    if(slider) slider.value = 0;
+    window.jkSetVolume(0);
+  }
 };
 
 window.jkDeleteTrack = async function(id){
