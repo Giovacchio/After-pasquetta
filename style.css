@@ -646,3 +646,104 @@ body.dark-mode .citazione-who { color:var(--accent); }
 .citazione-actions {
   position:absolute;top:0.4rem;right:0.4rem;display:flex;flex-direction:column;gap:0.3rem;
 }
+
+/* ── JUKEBOX ────────────────────────────────────────── */
+.jukebox-playlist {
+  display:flex;flex-direction:column;gap:0;
+}
+.jukebox-track {
+  display:flex;align-items:center;gap:0.8rem;
+  padding:0.8rem 1rem;cursor:pointer;
+  background:var(--card);border:2px solid var(--border);
+  border-bottom:none;transition:background 0.15s;
+}
+.jukebox-track:first-child { border-radius:6px 6px 0 0; }
+.jukebox-track:last-child { border-bottom:2px solid var(--border); border-radius:0 0 6px 6px; }
+.jukebox-track:first-child:last-child { border-radius:6px; border-bottom:2px solid var(--border); }
+.jukebox-track:hover, .jukebox-track:active { background:var(--bg2); }
+.jukebox-track-active {
+  background:var(--accent-light) !important;
+  border-color:var(--accent2) !important;
+}
+body.dark-mode .jukebox-track-active {
+  background:rgba(82,183,136,0.15) !important;
+  border-color:var(--accent) !important;
+}
+.jukebox-track-num {
+  font-family:'VT323',monospace;font-size:1.3rem;color:var(--muted);
+  min-width:28px;text-align:center;
+}
+.jukebox-track-active .jukebox-track-num { color:var(--accent2); }
+body.dark-mode .jukebox-track-active .jukebox-track-num { color:var(--accent); }
+.jukebox-eq {
+  display:inline-block;animation:jkEq 0.6s ease-in-out infinite alternate;
+  color:var(--accent2);font-size:1.4rem;
+}
+body.dark-mode .jukebox-eq { color:var(--accent); }
+@keyframes jkEq {
+  from { transform:scaleY(0.6); }
+  to   { transform:scaleY(1.2); }
+}
+.jukebox-track-info { flex:1;min-width:0; }
+.jukebox-track-title {
+  font-family:'VT323',monospace;font-size:1.25rem;color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.jukebox-track-meta {
+  display:flex;align-items:center;gap:0.3rem;
+  font-size:0.8rem;color:var(--muted);font-family:sans-serif;margin-top:0.15rem;
+}
+.jukebox-track-meta img { width:22px;height:22px;border-radius:50%;object-fit:cover; }
+
+/* Player bar */
+#jukebox-player-bar {
+  position:sticky;bottom:0;left:0;right:0;z-index:100;
+  background:var(--card);border:3px solid var(--border);border-radius:8px;
+  box-shadow:0 -4px 16px rgba(0,0,0,0.12);
+  margin-top:1.2rem;overflow:hidden;
+}
+body.dark-mode #jukebox-player-bar {
+  box-shadow:0 -4px 16px rgba(0,0,0,0.4);
+}
+.jukebox-player-inner {
+  padding:0.8rem 1rem;display:flex;flex-direction:column;gap:0.6rem;
+}
+.jukebox-player-info { display:flex;flex-direction:column;gap:0.15rem; }
+.jukebox-now-label {
+  font-size:0.7rem;color:var(--muted);font-family:sans-serif;
+  text-transform:uppercase;letter-spacing:0.08em;font-weight:700;
+}
+.jukebox-now-title {
+  font-family:'VT323',monospace;font-size:1.5rem;color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;
+}
+.jukebox-player-controls {
+  display:flex;align-items:center;gap:0.5rem;justify-content:center;
+}
+.jukebox-ctrl-btn {
+  background:var(--bg2);border:2px solid var(--border);border-radius:6px;
+  font-size:1.3rem;width:44px;height:44px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:all 0.12s;color:var(--text);
+}
+.jukebox-ctrl-btn:hover, .jukebox-ctrl-btn:active {
+  background:var(--accent-light);border-color:var(--accent2);
+}
+.jukebox-ctrl-play {
+  width:52px;height:52px;font-size:1.5rem;border-radius:50%;
+  background:var(--accent2);color:var(--card);border-color:var(--accent2);
+}
+body.dark-mode .jukebox-ctrl-play { background:var(--accent);border-color:var(--accent); }
+.jukebox-ctrl-play:hover, .jukebox-ctrl-play:active {
+  background:var(--accent);color:var(--card);border-color:var(--accent);
+  transform:scale(1.08);
+}
+
+/* YouTube embed mini (visibile per ToS) */
+.jukebox-yt-wrap {
+  width:120px;height:68px;border-radius:4px;overflow:hidden;
+  border:1px solid var(--border);align-self:center;
+  opacity:0.7;transition:opacity 0.2s;
+}
+.jukebox-yt-wrap:hover { opacity:1; }
+.jukebox-yt-wrap iframe { width:120px;height:68px; }

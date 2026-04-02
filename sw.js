@@ -24,9 +24,12 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
 
-  // Non cachare mai chiamate Firebase / API esterne
+  // Non cachare mai chiamate Firebase / API esterne / YouTube
   if(url.hostname.includes('firebasedatabase.app') ||
      url.hostname.includes('firebaseio.com') ||
+     url.hostname.includes('youtube.com') ||
+     url.hostname.includes('ytimg.com') ||
+     url.hostname.includes('googlevideo.com') ||
      (url.hostname.includes('googleapis.com') && url.pathname.includes('/v1'))){
     return;
   }
