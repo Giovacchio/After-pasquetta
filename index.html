@@ -3142,8 +3142,8 @@ function renderListe(){
       const p=parseItemQty(it.name||'');
       const price=parseFloat(it.price)||0;
       const priceHtml=price>0
-        ? `<span class="lista-price" onclick="event.stopPropagation();window.setItemPrice('${id}','${k}')">${price.toFixed(2)}€</span>`
-        : `<span class="lista-price lista-price-empty" onclick="event.stopPropagation();window.setItemPrice('${id}','${k}')">€</span>`;
+        ? `<button class="lista-price-btn lista-price-set" onclick="event.stopPropagation();window.setItemPrice('${id}','${k}')">💰 ${price.toFixed(2)}€</button>`
+        : `<button class="lista-price-btn" onclick="event.stopPropagation();window.setItemPrice('${id}','${k}')">💰 €?</button>`;
 
       if(p.qty<=1){
         // ── Semplice spunta ──
@@ -3189,11 +3189,12 @@ function renderListe(){
     const numPeople=parseInt(lista.participants)||0;
     const avgPrice=numPeople>0?(totalPrice/numPeople):0;
     const totalsHtml=`<div class="lista-totals">
-      <div class="lista-totals-row">
+      <div class="lista-participants-row" onclick="window.setListaParticipants('${id}')">
         <span>👥 Partecipanti</span>
-        <span class="lista-participants-btn" onclick="window.setListaParticipants('${id}')">${numPeople>0?numPeople:'imposta'}</span>
+        <span class="lista-participants-val">${numPeople>0?numPeople:'tap per impostare'}</span>
       </div>
-      ${totalPrice>0?`<div class="lista-totals-row"><span>💰 Totale</span><span class="lista-totals-val">${totalPrice.toFixed(2)}€</span></div>
+      ${totalPrice>0?`<div class="lista-totals-divider"></div>
+      <div class="lista-totals-row"><span>💰 Totale spesa</span><span class="lista-totals-val">${totalPrice.toFixed(2)}€</span></div>
       ${numPeople>0?`<div class="lista-totals-row"><span>÷ Media a persona</span><span class="lista-totals-val">${avgPrice.toFixed(2)}€</span></div>`:''}`:''}
     </div>`;
 
