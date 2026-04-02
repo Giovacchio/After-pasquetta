@@ -493,6 +493,10 @@
         <input type="text" id="jukebox-name" placeholder="Es. Blinding Lights - The Weeknd" maxlength="100" style="margin-bottom:0.8rem">
         <label style="margin-bottom:0.3rem">Link YouTube</label>
         <input type="text" id="jukebox-url" placeholder="https://youtube.com/watch?v=..." maxlength="300" style="margin-bottom:0.8rem">
+        <label style="margin-bottom:0.3rem">Playlist (opzionale)</label>
+        <select id="jukebox-add-playlist" style="margin-bottom:0.8rem;background:var(--bg2);border:2px solid var(--border);border-radius:4px;color:var(--text);font-family:'VT323',monospace;font-size:1.1rem;padding:0.4rem;outline:none;width:100%">
+          <option value="">Nessuna playlist</option>
+        </select>
         <div class="btn-row">
           <button class="btn btn-primary" onclick="window.submitJukeboxTrack()">🎵 Aggiungi</button>
           <span style="font-size:0.95rem;color:var(--muted);font-family:sans-serif" id="jukebox-name-hint"></span>
@@ -500,10 +504,20 @@
       </div>
     </div>
 
-    <!-- PLAYLIST -->
+    <!-- PLAYLIST FILTER -->
+    <div id="jk-playlist-bar" style="margin-bottom:1rem">
+      <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">
+        <select id="jk-playlist-filter" onchange="window.jkFilterPlaylist()" style="flex:1;background:var(--bg2);border:2px solid var(--border);border-radius:4px;color:var(--text);font-family:'VT323',monospace;font-size:1.1rem;padding:0.4rem;outline:none;">
+          <option value="">🎶 Tutte le canzoni</option>
+        </select>
+        <button class="btn btn-secondary" style="font-size:0.9rem;padding:0.35rem 0.7rem" onclick="window.jkNewPlaylist()">+ Playlist</button>
+      </div>
+    </div>
+
+    <!-- TRACK LIST -->
     <div id="jukebox-list-container"><div style="color:var(--muted)"><span class="spinner"></span>Caricamento...</div></div>
 
-    <!-- MINI PLAYER YOUTUBE (visibile per ToS) -->
+    <!-- MINI PLAYER YOUTUBE -->
     <div id="jukebox-player-bar" style="display:none">
       <div class="jukebox-player-inner">
         <div class="jukebox-player-info">
@@ -514,7 +528,7 @@
           <button class="jukebox-ctrl-btn" onclick="window.jkPrev()" title="Precedente">⏮</button>
           <button class="jukebox-ctrl-btn jukebox-ctrl-play" id="jukebox-play-btn" onclick="window.jkTogglePlay()" title="Play/Pausa">▶</button>
           <button class="jukebox-ctrl-btn" onclick="window.jkNext()" title="Successiva">⏭</button>
-          <button class="jukebox-ctrl-btn" onclick="window.jkShuffle()" title="Shuffle">🔀</button>
+          <button class="jukebox-ctrl-btn" id="jukebox-shuffle-btn" onclick="window.jkToggleShuffle()" title="Shuffle">🔀</button>
         </div>
         <div class="jukebox-volume-row">
           <span class="jukebox-vol-icon" id="jukebox-vol-icon" onclick="window.jkToggleMute()">🔊</span>
@@ -524,6 +538,25 @@
         <div class="jukebox-yt-wrap" id="jukebox-yt-wrap">
           <div id="jukebox-yt-player"></div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- JUKEBOX EDIT OVERLAY -->
+  <div id="jk-edit-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1200;align-items:center;justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
+    <div style="background:var(--card);border:2px solid var(--border);border-radius:6px;padding:1.5rem;width:min(360px,92vw);box-shadow:8px 8px 0px rgba(0,0,0,0.2);">
+      <div class="section-title" style="margin-bottom:1rem">✏️ Modifica canzone</div>
+      <label>Nome</label>
+      <input type="text" id="jk-edit-name" maxlength="100" style="margin-bottom:0.8rem">
+      <label>Link YouTube</label>
+      <input type="text" id="jk-edit-url" maxlength="300" style="margin-bottom:0.8rem">
+      <label>Playlist</label>
+      <select id="jk-edit-playlist" style="margin-bottom:0.8rem;background:var(--bg2);border:2px solid var(--border);border-radius:4px;color:var(--text);font-family:'VT323',monospace;font-size:1.1rem;padding:0.4rem;outline:none;width:100%">
+        <option value="">Nessuna playlist</option>
+      </select>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="window.jkSaveEdit()">💾 Salva</button>
+        <button class="btn btn-secondary" onclick="document.getElementById('jk-edit-overlay').style.display='none'">Annulla</button>
       </div>
     </div>
   </div>
@@ -1509,6 +1542,38 @@ function drawPie(canvasId,counts,total){
 
 window.getVoterName=getVoterName;
 
+// ── EMOJI REACTIONS (shared helper) ──────────────────
+const REACTIONS_LIST = [
+  {key:'like',emoji:'👍'},{key:'heart',emoji:'❤️'},{key:'laugh',emoji:'😂'},
+  {key:'fire',emoji:'🔥'},{key:'wow',emoji:'😮'}
+];
+
+function renderReactionsBar(section, itemId, reactionsData){
+  const myName = getVoterName();
+  const sMyName = myName ? sanitize(myName) : '';
+  let html = '<div class="reactions-bar">';
+  REACTIONS_LIST.forEach(r=>{
+    const rData = (reactionsData||{})[r.key]||{};
+    const count = Object.keys(rData).length;
+    const iReacted = sMyName && rData[sMyName];
+    html += `<button class="reaction-btn${iReacted?' reaction-active':''}" onclick="event.stopPropagation();window.toggleReaction('${section}','${itemId}','${r.key}')">${r.emoji}${count?`<span class="reaction-count">${count}</span>`:''}</button>`;
+  });
+  html += '</div>';
+  return html;
+}
+
+window.toggleReaction = async function(section, itemId, reactionKey){
+  const myName = getVoterName();
+  if(!myName) return showToast('Inserisci il tuo nome nella Hub!');
+  const sMyName = sanitize(myName);
+  const path = `${section}/${itemId}/reactions/${reactionKey}/${sMyName}`;
+  try{
+    const snap = await get(ref(db, path));
+    if(snap.exists()) await remove(ref(db, path));
+    else await set(ref(db, path), true);
+  }catch(e){ showToast('Errore: '+e.message); }
+};
+
 // ── CHAT ──────────────────────────────────────────────
 function initChat(){
   const msgsRef=ref(db,'chat');
@@ -1516,14 +1581,14 @@ function initChat(){
     const box=document.getElementById('chat-messages');
     if(!box) return;
     const data=snap.val()||{};
-    const msgs=Object.values(data).sort((a,b)=>a.ts-b.ts);
+    const entries=Object.entries(data).sort((a,b)=>a[1].ts-b[1].ts);
     const myName=getVoterName();
-    if(msgs.length===0){
+    if(entries.length===0){
       box.innerHTML='<div class="chat-empty" id="chat-empty">Nessun messaggio ancora.<br>Scrivi il primo!</div>';
       return;
     }
     box.innerHTML='';
-    msgs.forEach(m=>{
+    entries.forEach(([id,m])=>{
       const isMe=m.name===myName;
       const wrap=document.createElement('div');
       wrap.style.display='flex'; wrap.style.flexDirection='column';
@@ -1536,6 +1601,10 @@ function initChat(){
       bubble.className='msg '+(isMe?'msg-user':'msg-other');
       bubble.textContent=m.text;
       wrap.appendChild(bubble);
+      // Reactions
+      const reactDiv=document.createElement('div');
+      reactDiv.innerHTML=renderReactionsBar('chat',id,m.reactions);
+      wrap.appendChild(reactDiv);
       box.appendChild(wrap);
     });
     box.scrollTop=box.scrollHeight;
@@ -2703,6 +2772,7 @@ function renderBacheca(data){
         <span class="bacheca-time">${formatBachecaTime(post.ts)}</span>
       </div>
       <div class="bacheca-text">${esc(post.text)}</div>
+      ${renderReactionsBar('bacheca',id,post.reactions)}
       <button class="bacheca-del" onclick="window.deleteBachecaPost('${id}')" title="Elimina">✖</button>`;
     el.appendChild(div);
   });
@@ -3136,7 +3206,10 @@ function renderListe(){
     div.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.8rem">
       <div><div class="section-title">${esc(lista.title||'Lista')}</div>
       <div style="font-size:0.85rem;color:var(--muted);font-family:sans-serif">${doneItems}/${totalItems} completati · da ${getAvatarHtml(lista.author,16)} ${esc(lista.author||'Anonimo')}</div></div>
-      <button class="evento-del" onclick="window.deleteLista('${id}')" title="Elimina" style="position:static">✖</button>
+      <div style="display:flex;gap:0.3rem;flex-shrink:0">
+        <button class="evento-del" onclick="window.editLista('${id}')" title="Modifica" style="position:static">✏️</button>
+        <button class="evento-del" onclick="window.deleteLista('${id}')" title="Elimina" style="position:static">✖</button>
+      </div>
     </div>
     <div>${itemsHtml}</div>
     <div style="display:flex;gap:0.4rem;margin-top:0.8rem">
@@ -3305,6 +3378,16 @@ window.deleteLista=async function(id){
   }
 };
 
+window.editLista=function(id){
+  const lista=_listaCache[id]; if(!lista) return;
+  const newTitle=prompt('Nuovo titolo della lista:',lista.title||'');
+  if(newTitle===null) return;
+  if(!newTitle.trim()) return showToast('Il titolo non può essere vuoto');
+  update(ref(db,`liste/${id}`),{title:newTitle.trim()})
+    .then(()=>showToast('Titolo aggiornato! ✏️'))
+    .catch(e=>showToast('Errore: '+e.message));
+};
+
 // ── CITAZIONI ──────────────────────────────────────────
 let _citazioniUnsub = null;
 let _citazioniCache = {};
@@ -3347,6 +3430,7 @@ function renderCitazioni(){
         <div class="citazione-who">— ${esc(cit.who||'Anonimo')}</div>
         <div class="citazione-meta">${whenHtml?whenHtml+' · ':''}${getAvatarHtml(cit.addedBy,14)} ${esc(cit.addedBy||'')}</div>
       </div>
+      ${renderReactionsBar('citazioni',id,cit.reactions)}
       <div class="citazione-actions">
         <button class="evento-del" onclick="window.editCitazione('${id}')" title="Modifica" style="position:static">✏️</button>
         <button class="evento-del" onclick="window.deleteCitazione('${id}')" title="Elimina" style="position:static">✖</button>
@@ -3438,23 +3522,28 @@ let _jukeboxCache = {};
 let _jukeboxUnsub = null;
 let _jkPlayer = null;
 let _jkReady = false;
-let _jkCurrentId = null; // Firebase key della traccia in riproduzione
+let _jkCurrentId = null;
 let _jkPlaying = false;
 let _jkApiLoaded = false;
-let _jkPlaylist = []; // Array ordinato di chiavi Firebase
+let _jkPlaylist = []; // currently active (filtered) track IDs
+let _jkAllTracks = []; // all track IDs sorted by ts
+let _jkShuffleOn = false;
+let _jkEditingId = null;
+let _jkVolume = 80;
+let _jkMuted = false;
+let _jkVolumeBeforeMute = 80;
+let _jkPlaylistsCache = {};
+let _jkPlaylistsUnsub = null;
+let _jkActiveFilter = ''; // '' = all, else playlist ID
 
 function extractYouTubeId(url){
   if(!url) return null;
-  // youtu.be/XXXX
   let m = url.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
   if(m) return m[1];
-  // youtube.com/watch?v=XXXX
   m = url.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
   if(m) return m[1];
-  // youtube.com/embed/XXXX
   m = url.match(/embed\/([a-zA-Z0-9_-]{11})/);
   if(m) return m[1];
-  // youtube.com/shorts/XXXX
   m = url.match(/shorts\/([a-zA-Z0-9_-]{11})/);
   if(m) return m[1];
   return null;
@@ -3468,72 +3557,98 @@ function loadYouTubeAPI(){
   document.head.appendChild(tag);
 }
 
-// YouTube API chiama questo globalmente quando è pronta
 window.onYouTubeIframeAPIReady = function(){
   _jkPlayer = new YT.Player('jukebox-yt-player', {
-    height: '68',
-    width: '120',
-    playerVars: {
-      autoplay: 0,
-      controls: 0,
-      modestbranding: 1,
-      rel: 0,
-      fs: 0,
-      playsinline: 1
-    },
+    height: '68', width: '120',
+    playerVars: { autoplay:0, controls:0, modestbranding:1, rel:0, fs:0, playsinline:1 },
     events: {
       onReady: function(){ _jkReady = true; _jkPlayer.setVolume(_jkVolume); },
       onStateChange: function(e){
         if(e.data === YT.PlayerState.ENDED){
-          window.jkNext();
+          // Shuffle mode: random next; otherwise sequential
+          if(_jkShuffleOn && _jkPlaylist.length > 1){
+            let r; do { r = Math.floor(Math.random()*_jkPlaylist.length); } while(_jkPlaylist[r]===_jkCurrentId);
+            window.jkPlayTrack(_jkPlaylist[r]);
+          } else { window.jkNext(); }
         }
-        if(e.data === YT.PlayerState.PLAYING){
-          _jkPlaying = true;
-          const btn = document.getElementById('jukebox-play-btn');
-          if(btn) btn.textContent = '⏸';
-        }
-        if(e.data === YT.PlayerState.PAUSED){
-          _jkPlaying = false;
-          const btn = document.getElementById('jukebox-play-btn');
-          if(btn) btn.textContent = '▶';
-        }
+        if(e.data === YT.PlayerState.PLAYING){ _jkPlaying=true; const b=document.getElementById('jukebox-play-btn'); if(b) b.textContent='⏸'; }
+        if(e.data === YT.PlayerState.PAUSED){ _jkPlaying=false; const b=document.getElementById('jukebox-play-btn'); if(b) b.textContent='▶'; }
       }
     }
   });
 };
 
+function _jkApplyFilter(){
+  if(!_jkActiveFilter){
+    _jkPlaylist = [..._jkAllTracks];
+  } else {
+    const pl = _jkPlaylistsCache[_jkActiveFilter];
+    if(pl && pl.tracks){
+      const trackSet = new Set(Array.isArray(pl.tracks)?pl.tracks:Object.values(pl.tracks));
+      _jkPlaylist = _jkAllTracks.filter(id=>trackSet.has(id));
+    } else { _jkPlaylist = [..._jkAllTracks]; }
+  }
+}
+
+function _jkRefreshPlaylistSelects(){
+  const plEntries = Object.entries(_jkPlaylistsCache).sort((a,b)=>(a[1].ts||0)-(b[1].ts||0));
+  ['jk-playlist-filter','jukebox-add-playlist','jk-edit-playlist'].forEach(selId=>{
+    const sel=document.getElementById(selId); if(!sel) return;
+    const cur=sel.value;
+    const isFilter = selId==='jk-playlist-filter';
+    sel.innerHTML = isFilter ? '<option value="">🎶 Tutte le canzoni</option>' : '<option value="">Nessuna playlist</option>';
+    plEntries.forEach(([id,pl])=>{
+      const opt=document.createElement('option'); opt.value=id; opt.textContent=pl.name||'Senza nome'; sel.appendChild(opt);
+    });
+    sel.value=cur;
+  });
+}
+
 function initJukebox(){
   if(_jukeboxUnsub) return;
   _jukeboxUnsub = onValue(ref(db,'jukebox'), (snap)=>{
     _jukeboxCache = snap.val()||{};
-    _jkPlaylist = Object.keys(_jukeboxCache).sort((a,b)=>(_jukeboxCache[a].ts||0)-(_jukeboxCache[b].ts||0));
+    _jkAllTracks = Object.keys(_jukeboxCache).sort((a,b)=>(_jukeboxCache[a].ts||0)-(_jukeboxCache[b].ts||0));
+    _jkApplyFilter();
     renderJukebox();
-    _updateHubBadge('screen-jukebox', _jkPlaylist.length);
+    _updateHubBadge('screen-jukebox', _jkAllTracks.length);
   });
+  // Playlists listener
+  if(!_jkPlaylistsUnsub){
+    _jkPlaylistsUnsub = onValue(ref(db,'jkPlaylists'), (snap)=>{
+      _jkPlaylistsCache = snap.val()||{};
+      _jkRefreshPlaylistSelects();
+    });
+  }
 }
 
 function renderJukebox(){
   const container = document.getElementById('jukebox-list-container');
   if(!container) return;
   if(_jkPlaylist.length === 0){
-    container.innerHTML = '<div style="color:var(--muted);font-size:1.1rem;text-align:center;padding:1.5rem 0">Nessuna canzone ancora.<br>Aggiungi la prima! 🎶</div>';
+    container.innerHTML = _jkAllTracks.length>0
+      ? '<div style="color:var(--muted);font-size:1.1rem;text-align:center;padding:1.5rem 0">Nessuna canzone in questa playlist.</div>'
+      : '<div style="color:var(--muted);font-size:1.1rem;text-align:center;padding:1.5rem 0">Nessuna canzone ancora.<br>Aggiungi la prima! 🎶</div>';
     return;
   }
-  const name = getVoterName();
+  const myName = getVoterName();
   let html = '<div class="jukebox-playlist">';
   _jkPlaylist.forEach((id, idx) => {
-    const t = _jukeboxCache[id];
+    const t = _jukeboxCache[id]; if(!t) return;
     const isPlaying = (_jkCurrentId === id && _jkPlaying);
     const isCurrent = (_jkCurrentId === id);
-    const addedByMe = name && t.addedBy === name;
+    const addedByMe = myName && t.addedBy === myName;
     const avatarHtml = getAvatarHtml(t.addedBy||'', 22);
+    const plName = t.playlistId && _jkPlaylistsCache[t.playlistId] ? _jkPlaylistsCache[t.playlistId].name : '';
     html += `<div class="jukebox-track${isCurrent?' jukebox-track-active':''}" onclick="window.jkPlayTrack('${id}')">
       <div class="jukebox-track-num">${isPlaying?'<span class="jukebox-eq">♫</span>':(idx+1)}</div>
       <div class="jukebox-track-info">
         <div class="jukebox-track-title">${esc(t.name||'Senza titolo')}</div>
-        <div class="jukebox-track-meta">${avatarHtml} <span>${esc(t.addedBy||'?')}</span></div>
+        <div class="jukebox-track-meta">${avatarHtml} <span>${esc(t.addedBy||'?')}</span>${plName?` · <span style="color:var(--accent2)">📁 ${esc(plName)}</span>`:''}</div>
       </div>
-      ${addedByMe?`<button class="evento-del" onclick="event.stopPropagation();window.jkDeleteTrack('${id}')" title="Elimina" style="position:static">✖</button>`:''}
+      <div style="display:flex;gap:0.3rem;flex-shrink:0">
+        ${addedByMe?`<button class="evento-del" onclick="event.stopPropagation();window.jkEditTrack('${id}')" title="Modifica" style="position:static">✏️</button><button class="evento-del" onclick="event.stopPropagation();window.jkDeleteTrack('${id}')" title="Elimina" style="position:static">✖</button>`:''}
+      </div>
     </div>`;
   });
   html += '</div>';
@@ -3549,23 +3664,75 @@ window.submitJukeboxTrack = async function(){
   if(!url) return showToast('Inserisci il link YouTube');
   const videoId = extractYouTubeId(url);
   if(!videoId) return showToast('Link YouTube non valido!');
+  const playlistId = document.getElementById('jukebox-add-playlist')?.value || '';
   try{
-    await push(ref(db,'jukebox'), {
-      name: trackName,
-      videoId: videoId,
-      url: url,
-      addedBy: name,
-      ts: Date.now()
-    });
+    const data = { name:trackName, videoId, url, addedBy:name, ts:Date.now() };
+    if(playlistId) data.playlistId = playlistId;
+    const newRef = await push(ref(db,'jukebox'), data);
+    // Also add to playlist tracks array if selected
+    if(playlistId){
+      const pl = _jkPlaylistsCache[playlistId];
+      const tracks = pl?.tracks ? (Array.isArray(pl.tracks)?pl.tracks:Object.values(pl.tracks)) : [];
+      tracks.push(newRef.key);
+      await update(ref(db,`jkPlaylists/${playlistId}`),{tracks});
+    }
     document.getElementById('jukebox-name').value = '';
     document.getElementById('jukebox-url').value = '';
     _selfActionPending['screen-jukebox'] = true;
     showToast('Canzone aggiunta! 🎵');
-  }catch(e){
-    showToast('Errore: '+e.message);
-  }
+  }catch(e){ showToast('Errore: '+e.message); }
 };
 
+// ── Edit track ──
+window.jkEditTrack = function(id){
+  const t = _jukeboxCache[id]; if(!t) return;
+  _jkEditingId = id;
+  document.getElementById('jk-edit-name').value = t.name||'';
+  document.getElementById('jk-edit-url').value = t.url||'';
+  const sel = document.getElementById('jk-edit-playlist');
+  if(sel) sel.value = t.playlistId||'';
+  document.getElementById('jk-edit-overlay').style.display='flex';
+};
+
+window.jkSaveEdit = async function(){
+  if(!_jkEditingId) return;
+  const name = document.getElementById('jk-edit-name').value.trim();
+  const url = document.getElementById('jk-edit-url').value.trim();
+  if(!name) return showToast('Inserisci il nome');
+  if(!url) return showToast('Inserisci il link');
+  const videoId = extractYouTubeId(url);
+  if(!videoId) return showToast('Link YouTube non valido!');
+  const playlistId = document.getElementById('jk-edit-playlist')?.value || '';
+  try{
+    const upd = {name, url, videoId};
+    if(playlistId) upd.playlistId = playlistId; else upd.playlistId = null;
+    await update(ref(db,`jukebox/${_jkEditingId}`), upd);
+    document.getElementById('jk-edit-overlay').style.display='none';
+    // Update now-playing title if editing current track
+    if(_jkCurrentId===_jkEditingId){
+      document.getElementById('jukebox-now-title').textContent=name;
+    }
+    showToast('Canzone aggiornata! ✏️');
+  }catch(e){ showToast('Errore: '+e.message); }
+};
+
+// ── Playlists ──
+window.jkNewPlaylist = function(){
+  const name = prompt('Nome della nuova playlist:');
+  if(!name || !name.trim()) return;
+  const author = getVoterName()||'Anonimo';
+  push(ref(db,'jkPlaylists'),{name:name.trim(), author, ts:Date.now(), tracks:[]})
+    .then(()=>showToast('Playlist creata! 📁'))
+    .catch(e=>showToast('Errore: '+e.message));
+};
+
+window.jkFilterPlaylist = function(){
+  _jkActiveFilter = document.getElementById('jk-playlist-filter')?.value || '';
+  _jkApplyFilter();
+  renderJukebox();
+};
+
+// ── Player controls ──
 window.jkPlayTrack = function(id){
   const track = _jukeboxCache[id];
   if(!track || !track.videoId) return;
@@ -3582,11 +3749,7 @@ window.jkPlayTrack = function(id){
 
 window.jkTogglePlay = function(){
   if(!_jkReady || !_jkCurrentId) return;
-  if(_jkPlaying){
-    _jkPlayer.pauseVideo();
-  } else {
-    _jkPlayer.playVideo();
-  }
+  if(_jkPlaying) _jkPlayer.pauseVideo(); else _jkPlayer.playVideo();
 };
 
 window.jkNext = function(){
@@ -3603,64 +3766,46 @@ window.jkPrev = function(){
   window.jkPlayTrack(_jkPlaylist[idx]);
 };
 
-window.jkShuffle = function(){
-  if(_jkPlaylist.length <= 1) return;
-  let randomIdx;
-  do { randomIdx = Math.floor(Math.random()*_jkPlaylist.length); } while(_jkPlaylist[randomIdx] === _jkCurrentId && _jkPlaylist.length > 1);
-  window.jkPlayTrack(_jkPlaylist[randomIdx]);
+window.jkToggleShuffle = function(){
+  _jkShuffleOn = !_jkShuffleOn;
+  const btn = document.getElementById('jukebox-shuffle-btn');
+  if(btn) btn.classList.toggle('jukebox-shuffle-active', _jkShuffleOn);
+  showToast(_jkShuffleOn ? 'Shuffle attivo 🔀' : 'Shuffle disattivato');
 };
 
-let _jkVolume = 80;
-let _jkMuted = false;
-let _jkVolumeBeforeMute = 80;
-
+// ── Volume ──
 window.jkSetVolume = function(val){
-  val = parseInt(val);
-  _jkVolume = val;
-  _jkMuted = (val === 0);
+  val = parseInt(val); _jkVolume = val; _jkMuted = (val===0);
   if(_jkReady && _jkPlayer) _jkPlayer.setVolume(val);
-  const label = document.getElementById('jukebox-vol-label');
-  const icon = document.getElementById('jukebox-vol-icon');
-  if(label) label.textContent = val + '%';
-  if(icon) icon.textContent = val === 0 ? '🔇' : val < 40 ? '🔈' : val < 70 ? '🔉' : '🔊';
+  const label=document.getElementById('jukebox-vol-label');
+  const icon=document.getElementById('jukebox-vol-icon');
+  if(label) label.textContent=val+'%';
+  if(icon) icon.textContent=val===0?'🔇':val<40?'🔈':val<70?'🔉':'🔊';
 };
 
 window.jkToggleMute = function(){
   if(_jkMuted){
-    _jkMuted = false;
-    const slider = document.getElementById('jukebox-vol-slider');
-    if(slider) slider.value = _jkVolumeBeforeMute;
-    window.jkSetVolume(_jkVolumeBeforeMute);
+    _jkMuted=false; const s=document.getElementById('jukebox-vol-slider');
+    if(s) s.value=_jkVolumeBeforeMute; window.jkSetVolume(_jkVolumeBeforeMute);
   } else {
-    _jkVolumeBeforeMute = _jkVolume;
-    _jkMuted = true;
-    const slider = document.getElementById('jukebox-vol-slider');
-    if(slider) slider.value = 0;
-    window.jkSetVolume(0);
+    _jkVolumeBeforeMute=_jkVolume; _jkMuted=true;
+    const s=document.getElementById('jukebox-vol-slider');
+    if(s) s.value=0; window.jkSetVolume(0);
   }
 };
 
+// ── Delete track ──
 window.jkDeleteTrack = async function(id){
-  if(!confirm('Rimuovere questa canzone dalla playlist?')) return;
+  if(!confirm('Rimuovere questa canzone?')) return;
   try{
-    // Se stiamo riproducendo questa, passa alla prossima
-    if(_jkCurrentId === id){
-      const idx = _jkPlaylist.indexOf(id);
-      const nextIdx = (idx + 1) % _jkPlaylist.length;
-      if(_jkPlaylist.length > 1){
-        window.jkPlayTrack(_jkPlaylist[nextIdx === idx ? 0 : nextIdx]);
-      } else {
-        _jkCurrentId = null;
-        _jkPlaying = false;
-        if(_jkReady) _jkPlayer.stopVideo();
-        document.getElementById('jukebox-player-bar').style.display = 'none';
-      }
+    if(_jkCurrentId===id){
+      const idx=_jkPlaylist.indexOf(id);
+      if(_jkPlaylist.length>1){ window.jkPlayTrack(_jkPlaylist[(idx+1)%_jkPlaylist.length]); }
+      else { _jkCurrentId=null;_jkPlaying=false; if(_jkReady)_jkPlayer.stopVideo(); document.getElementById('jukebox-player-bar').style.display='none'; }
     }
     await remove(ref(db,`jukebox/${id}`));
     showToast('Canzone rimossa');
-  }catch(e){
-    showToast('Errore: '+e.message);
-  }
+  }catch(e){ showToast('Errore: '+e.message); }
 };
 
 // Init jukebox on load (Firebase listener for badges)
