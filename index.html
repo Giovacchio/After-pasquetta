@@ -530,6 +530,11 @@
           <button class="jukebox-ctrl-btn" onclick="window.jkNext()" title="Successiva">⏭</button>
           <button class="jukebox-ctrl-btn" id="jukebox-shuffle-btn" onclick="window.jkToggleShuffle()" title="Shuffle">🔀</button>
         </div>
+        <div class="jukebox-seek-row">
+          <span class="jukebox-time" id="jk-time-current">0:00</span>
+          <input type="range" id="jk-seek-bar" min="0" max="100" value="0" class="jukebox-seek-slider" oninput="window.jkSeek(this.value)" step="0.5">
+          <span class="jukebox-time" id="jk-time-total">0:00</span>
+        </div>
         <div class="jukebox-volume-row">
           <span class="jukebox-vol-icon" id="jukebox-vol-icon" onclick="window.jkToggleMute()">🔊</span>
           <input type="range" id="jukebox-vol-slider" min="0" max="100" value="80" class="jukebox-vol-slider" oninput="window.jkSetVolume(this.value)">
@@ -3550,13 +3555,17 @@ window.onYouTubeIframeAPIReady = function(){
       onReady: function(){ _jkReady = true; _jkPlayer.setVolume(_jkVolume); },
       onStateChange: function(e){
         if(e.data === YT.PlayerState.ENDED){
+          _jkStopSeekUpdater();
+          // Reset seek bar
+          const bar=document.getElementById('jk-seek-bar'); if(bar) bar.value=0;
+          const elCur=document.getElementById('jk-time-current'); if(elCur) elCur.textContent='0:00';
           // Shuffle mode: random next; otherwise sequential
           if(_jkShuffleOn && _jkPlaylist.length > 1){
             let r; do { r = Math.floor(Math.random()*_jkPlaylist.length); } while(_jkPlaylist[r]===_jkCurrentId);
             window.jkPlayTrack(_jkPlaylist[r]);
           } else { window.jkNext(); }
         }
-        if(e.data === YT.PlayerState.PLAYING){ _jkPlaying=true; const b=document.getElementById('jukebox-play-btn'); if(b) b.textContent='⏸'; }
+        if(e.data === YT.PlayerState.PLAYING){ _jkPlaying=true; const b=document.getElementById('jukebox-play-btn'); if(b) b.textContent='⏸'; _jkStartSeekUpdater(); }
         if(e.data === YT.PlayerState.PAUSED){ _jkPlaying=false; const b=document.getElementById('jukebox-play-btn'); if(b) b.textContent='▶'; }
       }
     }
@@ -3726,6 +3735,10 @@ window.jkPlayTrack = function(id){
   _jkPlayer.loadVideoById(track.videoId);
   _jkPlayer.setVolume(_jkVolume);
   _jkPlaying = true;
+  // Reset seek bar
+  const bar=document.getElementById('jk-seek-bar'); if(bar) bar.value=0;
+  const elCur=document.getElementById('jk-time-current'); if(elCur) elCur.textContent='0:00';
+  const elTot=document.getElementById('jk-time-total'); if(elTot) elTot.textContent='0:00';
   document.getElementById('jukebox-now-title').textContent = track.name||'Senza titolo';
   document.getElementById('jukebox-play-btn').textContent = '⏸';
   document.getElementById('jukebox-player-bar').style.display = '';
@@ -3779,6 +3792,55 @@ window.jkToggleMute = function(){
   }
 };
 
+// ── Seek bar ──
+let _jkSeekInterval = null;
+let _jkSeeking = false;
+
+function _jkFormatTime(secs){
+  if(!secs || isNaN(secs)) return '0:00';
+  const m = Math.floor(secs/60);
+  const s = Math.floor(secs%60);
+  return m + ':' + String(s).padStart(2,'0');
+}
+
+function _jkStartSeekUpdater(){
+  if(_jkSeekInterval) return;
+  _jkSeekInterval = setInterval(()=>{
+    if(!_jkReady || !_jkPlayer || _jkSeeking) return;
+    try{
+      const cur = _jkPlayer.getCurrentTime()||0;
+      const dur = _jkPlayer.getDuration()||0;
+      const bar = document.getElementById('jk-seek-bar');
+      const elCur = document.getElementById('jk-time-current');
+      const elTot = document.getElementById('jk-time-total');
+      if(bar && dur > 0) bar.value = (cur/dur)*100;
+      if(elCur) elCur.textContent = _jkFormatTime(cur);
+      if(elTot) elTot.textContent = _jkFormatTime(dur);
+    }catch(e){}
+  }, 500);
+}
+
+function _jkStopSeekUpdater(){
+  if(_jkSeekInterval){ clearInterval(_jkSeekInterval); _jkSeekInterval=null; }
+}
+
+window.jkSeek = function(val){
+  if(!_jkReady || !_jkPlayer) return;
+  const dur = _jkPlayer.getDuration()||0;
+  if(dur <= 0) return;
+  _jkPlayer.seekTo((val/100)*dur, true);
+};
+
+// Track user dragging the seek bar
+(function(){
+  const bar = document.getElementById('jk-seek-bar');
+  if(!bar) return;
+  bar.addEventListener('mousedown', ()=>{ _jkSeeking=true; });
+  bar.addEventListener('mouseup', ()=>{ _jkSeeking=false; });
+  bar.addEventListener('touchstart', ()=>{ _jkSeeking=true; }, {passive:true});
+  bar.addEventListener('touchend', ()=>{ _jkSeeking=false; });
+})();
+
 // ── Delete track ──
 window.jkDeleteTrack = async function(id){
   if(!confirm('Rimuovere questa canzone?')) return;
@@ -3786,7 +3848,7 @@ window.jkDeleteTrack = async function(id){
     if(_jkCurrentId===id){
       const idx=_jkPlaylist.indexOf(id);
       if(_jkPlaylist.length>1){ window.jkPlayTrack(_jkPlaylist[(idx+1)%_jkPlaylist.length]); }
-      else { _jkCurrentId=null;_jkPlaying=false; if(_jkReady)_jkPlayer.stopVideo(); document.getElementById('jukebox-player-bar').style.display='none'; }
+      else { _jkCurrentId=null;_jkPlaying=false; if(_jkReady)_jkPlayer.stopVideo(); _jkStopSeekUpdater(); document.getElementById('jukebox-player-bar').style.display='none'; }
     }
     await remove(ref(db,`jukebox/${id}`));
     showToast('Canzone rimossa');

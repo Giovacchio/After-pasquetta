@@ -809,3 +809,27 @@ body.dark-mode .jukebox-vol-slider::-moz-range-thumb { background:var(--accent);
 body.dark-mode .jukebox-shuffle-active {
   background:var(--accent) !important;border-color:var(--accent) !important;
 }
+
+/* ── JUKEBOX SEEK BAR ───────────────────────────────── */
+.jukebox-seek-row {
+  display:flex;align-items:center;gap:0.4rem;padding:0 0.2rem;
+}
+.jukebox-time {
+  font-family:'VT323',monospace;font-size:1rem;color:var(--muted);
+  min-width:32px;text-align:center;
+}
+.jukebox-seek-slider {
+  flex:1;height:4px;-webkit-appearance:none;appearance:none;
+  background:var(--bg2);border-radius:2px;outline:none;cursor:pointer;
+}
+.jukebox-seek-slider::-webkit-slider-thumb {
+  -webkit-appearance:none;width:14px;height:14px;border-radius:50%;
+  background:var(--accent2);border:2px solid var(--card);cursor:pointer;
+  box-shadow:0 1px 3px rgba(0,0,0,0.2);
+}
+body.dark-mode .jukebox-seek-slider::-webkit-slider-thumb { background:var(--accent); }
+.jukebox-seek-slider::-moz-range-thumb {
+  width:14px;height:14px;border-radius:50%;
+  background:var(--accent2);border:2px solid var(--card);cursor:pointer;
+}
+body.dark-mode .jukebox-seek-slider::-moz-range-thumb { background:var(--accent); }
