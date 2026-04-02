@@ -69,6 +69,19 @@
       </div>
     </div>
 
+    <!-- COUNTDOWN PROSSIMO EVENTO -->
+    <div id="hub-countdown-wrap" style="display:none;margin-top:1.2rem">
+      <div class="card hub-countdown-card">
+        <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.6rem">
+          <span style="font-size:1.5rem">⏳</span>
+          <div class="section-title" style="margin:0">Prossimo evento</div>
+        </div>
+        <div class="hub-countdown-title" id="hub-countdown-title"></div>
+        <div class="hub-countdown-timer" id="hub-countdown-timer"></div>
+        <div class="hub-countdown-date" id="hub-countdown-date"></div>
+      </div>
+    </div>
+
     <!-- CHAT IN HUB -->
     <div style="margin-top:1.5rem">
       <div class="chat-box">
@@ -393,13 +406,27 @@
           <div class="section-title" style="margin-bottom:1rem">Nuova lista</div>
           <label>Titolo (es. "Grigliatona sabato")</label>
           <input type="text" id="lista-title" placeholder="Per quale occasione?" style="margin-bottom:0.8rem">
-          <label>Elementi (uno per riga)</label>
-          <textarea id="lista-items" placeholder="Birre&#10;Carbonella&#10;Piatti di plastica&#10;Casse bluetooth" style="margin-bottom:0.8rem;min-height:120px"></textarea>
+          <label>Elementi (uno per riga, usa "x3" per quantità)</label>
+          <textarea id="lista-items" placeholder="Birre x6&#10;Carbonella&#10;Piatti di plastica x20&#10;Casse bluetooth" style="margin-bottom:0.8rem;min-height:120px"></textarea>
           <div class="btn-row">
             <button class="btn btn-primary" onclick="window.submitLista()">✅ Crea lista</button>
             <button class="btn btn-secondary" onclick="document.getElementById('lista-form-wrap').style.display='none'">Annulla</button>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LISTA CLAIMS OVERLAY (per item con quantità > 1) -->
+  <div id="lista-claims-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1200;align-items:center;justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
+    <div style="background:var(--card);border:2px solid var(--border);border-radius:6px;padding:1.5rem;width:min(360px,92vw);box-shadow:8px 8px 0px rgba(0,0,0,0.2);max-height:80vh;overflow-y:auto;">
+      <div class="section-title" id="claims-overlay-title" style="margin-bottom:0.6rem">📦 Quante ne porti?</div>
+      <div id="claims-overlay-progress" style="margin-bottom:1rem"></div>
+      <div id="claims-overlay-list" style="margin-bottom:1rem"></div>
+      <div id="claims-overlay-mine" style="margin-bottom:1rem"></div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="window.saveListaClaim()">💾 Salva</button>
+        <button class="btn btn-secondary" onclick="document.getElementById('lista-claims-overlay').style.display='none'">Chiudi</button>
       </div>
     </div>
   </div>
@@ -2760,12 +2787,76 @@ window._markSectionSeen = function(screenId){
   if(badge) badge.classList.remove('show');
 };
 
-// Badge watcher: EVENTI — count future events
+// Badge watcher: EVENTI — count future events + Hub countdown
+let _nextEvent = null;
+let _countdownInterval = null;
+
 onValue(ref(db,'eventi'),(snap)=>{
   const data = snap.val()||{};
   const count = Object.keys(data).length;
   _updateHubBadge('screen-eventi', count);
+
+  // Find next future event for countdown
+  const now = new Date();
+  const todayStr = now.toISOString().slice(0,10);
+  let nearest = null;
+  let nearestDate = null;
+  Object.values(data).forEach(ev=>{
+    if(!ev.date) return;
+    // Build date+time
+    let evDate;
+    if(ev.time){
+      const [h,m] = ev.time.split(':').map(Number);
+      evDate = new Date(ev.date+'T'+String(h||0).padStart(2,'0')+':'+String(m||0).padStart(2,'0')+':00');
+    } else {
+      evDate = new Date(ev.date+'T23:59:59');
+    }
+    if(evDate <= now) return; // skip past events
+    if(!nearestDate || evDate < nearestDate){
+      nearestDate = evDate;
+      nearest = ev;
+    }
+  });
+  _nextEvent = nearest ? {title:nearest.title, date:nearestDate, time:nearest.time} : null;
+  _renderHubCountdown();
 });
+
+function _renderHubCountdown(){
+  const wrap = document.getElementById('hub-countdown-wrap');
+  if(!wrap) return;
+  if(!_nextEvent){
+    wrap.style.display='none';
+    if(_countdownInterval){ clearInterval(_countdownInterval); _countdownInterval=null; }
+    return;
+  }
+  wrap.style.display='';
+  document.getElementById('hub-countdown-title').textContent = _nextEvent.title||'Evento';
+  // Format date
+  const d = _nextEvent.date;
+  const giorni = ['Domenica','Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato'];
+  const mesi = ['gen','feb','mar','apr','mag','giu','lug','ago','set','ott','nov','dic'];
+  const dateStr = `${giorni[d.getDay()]} ${d.getDate()} ${mesi[d.getMonth()]}${_nextEvent.time?' alle '+_nextEvent.time:''}`;
+  document.getElementById('hub-countdown-date').textContent = dateStr;
+  _updateCountdownTimer();
+  if(_countdownInterval) clearInterval(_countdownInterval);
+  _countdownInterval = setInterval(_updateCountdownTimer, 60000); // update every minute
+}
+
+function _updateCountdownTimer(){
+  const el = document.getElementById('hub-countdown-timer');
+  if(!el || !_nextEvent) return;
+  const now = new Date();
+  const diff = _nextEvent.date - now;
+  if(diff <= 0){ el.textContent = '🎉 Adesso!'; return; }
+  const days = Math.floor(diff / 86400000);
+  const hours = Math.floor((diff % 86400000) / 3600000);
+  const mins = Math.floor((diff % 3600000) / 60000);
+  let parts = [];
+  if(days > 0) parts.push(days + (days===1?' giorno':' giorni'));
+  if(hours > 0) parts.push(hours + (hours===1?' ora':' ore'));
+  if(days === 0 && mins > 0) parts.push(mins + ' min');
+  el.textContent = parts.length ? 'tra ' + parts.join(', ') : '🎉 Adesso!';
+}
 
 // Badge watcher: BACHECA — count all posts
 onValue(ref(db,'bacheca'),(snap)=>{
@@ -2936,6 +3027,42 @@ window.deleteGioco=async function(id){
 // ── CHI PORTA COSA ──────────────────────────────────
 let _listaUnsub=null;
 let _listaCache={};
+let _claimsOverlayListaId=null;
+let _claimsOverlayItemKey=null;
+let _claimsOverlayMyQty=0;
+
+function parseItemQty(name){
+  // "Birra x6" → {label:"Birra", qty:6}
+  // "Carbonella" → {label:"Carbonella", qty:1}
+  const m = name.match(/^(.+?)\s*[xX×](\d+)\s*$/);
+  if(m && parseInt(m[2])>1) return {label:m[1].trim(), qty:parseInt(m[2])};
+  return {label:name, qty:1};
+}
+
+function getItemClaimed(item){
+  // Total claimed across all people
+  const claims=item.claims||{};
+  let total=0;
+  Object.values(claims).forEach(v=>{ total+=parseInt(v)||0; });
+  // Backward compat: if no claims but who is set, count as 1
+  if(total===0 && item.who) total=1;
+  return total;
+}
+
+function getItemClaimers(item){
+  // Returns array of {name, qty}
+  const claims=item.claims||{};
+  const arr=[];
+  Object.entries(claims).forEach(([sName,v])=>{
+    const q=parseInt(v)||0;
+    if(q>0) arr.push({sName, qty:q});
+  });
+  // Backward compat: old items with just who field
+  if(arr.length===0 && item.who){
+    arr.push({sName:sanitize(item.who), qty:1, displayName:item.who});
+  }
+  return arr;
+}
 
 function initLista(){
   if(_listaUnsub) return;
@@ -2953,30 +3080,62 @@ function renderListe(){
   const entries=Object.entries(_listaCache).sort((a,b)=>(b[1].ts||0)-(a[1].ts||0));
   if(entries.length===0){ el.innerHTML='<div class="empty-state"><div style="font-size:2.5rem;margin-bottom:0.8rem">🗳</div>Nessuna lista ancora.<br>Creane una!</div>'; return; }
   const myName=getVoterName();
+  const sMyName=myName?sanitize(myName):'';
   el.innerHTML='';
   entries.forEach(([id,lista])=>{
     const div=document.createElement('div'); div.className='card'; div.style.marginBottom='1rem';
     const items=lista.items||{};
     const itemKeys=Object.keys(items).sort((a,b)=>(items[a].order||0)-(items[b].order||0));
-    const claimed=itemKeys.filter(k=>items[k].who).length;
+    const totalItems=itemKeys.length;
+    const doneItems=itemKeys.filter(k=>{
+      const it=items[k];
+      const p=parseItemQty(it.name||'');
+      if(p.qty<=1) return !!it.who;
+      return getItemClaimed(it)>=p.qty;
+    }).length;
+
     let itemsHtml=itemKeys.map(k=>{
       const it=items[k];
-      const isClaimed=!!it.who;
-      const isMyItem=it.who===myName;
-      return `<div style="display:flex;align-items:center;gap:0.6rem;padding:0.4rem 0;border-bottom:1px dashed var(--bg2)">
-        <button onclick="window.toggleListaItem('${id}','${k}')" style="background:${isClaimed?'var(--accent)':'var(--bg2)'};border:2px solid var(--border);border-radius:4px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1rem;flex-shrink:0">${isClaimed?'✓':''}</button>
-        <span style="flex:1;${isClaimed?'text-decoration:line-through;color:var(--muted)':''}">${esc(it.name||'')}</span>
-        ${isClaimed?`<span style="font-size:0.85rem;color:var(--muted);font-family:sans-serif">${getAvatarHtml(it.who,18)} ${esc(it.who)}</span>`:''}
-      </div>`;
+      const p=parseItemQty(it.name||'');
+
+      if(p.qty<=1){
+        // ── Semplice spunta ──
+        const isClaimed=!!it.who;
+        return `<div style="display:flex;align-items:center;gap:0.6rem;padding:0.5rem 0;border-bottom:1px dashed var(--bg2)">
+          <button onclick="window.toggleListaItem('${id}','${k}')" style="background:${isClaimed?'var(--accent)':'var(--bg2)'};border:2px solid var(--border);border-radius:4px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1rem;flex-shrink:0">${isClaimed?'✓':''}</button>
+          <span style="flex:1;${isClaimed?'text-decoration:line-through;color:var(--muted)':''}">${esc(p.label)}</span>
+          ${isClaimed?`<span style="font-size:0.85rem;color:var(--muted);font-family:sans-serif">${getAvatarHtml(it.who,18)} ${esc(it.who)}</span>`:''}
+        </div>`;
+      } else {
+        // ── Quantità > 1: progress bar + tap per overlay ──
+        const claimed=getItemClaimed(it);
+        const pct=Math.min(100,Math.round(claimed/p.qty*100));
+        const isFull=claimed>=p.qty;
+        const claimers=getItemClaimers(it);
+        const claimersStr=claimers.map(c=>
+          `${getAvatarHtml(c.displayName||c.sName,16)} ${esc(c.displayName||c.sName)}${c.qty>1?' ×'+c.qty:''}`
+        ).join(', ');
+        return `<div style="padding:0.5rem 0;border-bottom:1px dashed var(--bg2);cursor:pointer" onclick="window.openClaimsOverlay('${id}','${k}')">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.3rem">
+            <span style="font-weight:600;${isFull?'text-decoration:line-through;color:var(--muted)':''}">${esc(p.label)}</span>
+            <span style="font-family:'VT323',monospace;font-size:1.15rem;color:${isFull?'var(--accent)':'var(--text)'}">${claimed}/${p.qty}</span>
+          </div>
+          <div style="background:var(--bg2);border-radius:3px;height:8px;overflow:hidden">
+            <div style="background:${isFull?'var(--accent)':'var(--accent2)'};height:100%;width:${pct}%;border-radius:3px;transition:width 0.3s"></div>
+          </div>
+          ${claimers.length?`<div style="font-size:0.8rem;color:var(--muted);font-family:sans-serif;margin-top:0.25rem">${claimersStr}</div>`:''}
+        </div>`;
+      }
     }).join('');
+
     div.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.8rem">
       <div><div class="section-title">${esc(lista.title||'Lista')}</div>
-      <div style="font-size:0.85rem;color:var(--muted);font-family:sans-serif">${claimed}/${itemKeys.length} assegnati · da ${getAvatarHtml(lista.author,16)} ${esc(lista.author||'Anonimo')}</div></div>
+      <div style="font-size:0.85rem;color:var(--muted);font-family:sans-serif">${doneItems}/${totalItems} completati · da ${getAvatarHtml(lista.author,16)} ${esc(lista.author||'Anonimo')}</div></div>
       <button class="evento-del" onclick="window.deleteLista('${id}')" title="Elimina" style="position:static">✖</button>
     </div>
     <div>${itemsHtml}</div>
     <div style="display:flex;gap:0.4rem;margin-top:0.8rem">
-      <input type="text" id="add-item-${id}" placeholder="Aggiungi elemento..." style="flex:1;font-size:1rem;padding:0.4rem 0.7rem">
+      <input type="text" id="add-item-${id}" placeholder="Aggiungi elemento (es. Birra x4)..." style="flex:1;font-size:1rem;padding:0.4rem 0.7rem">
       <button class="btn btn-secondary" style="font-size:0.9rem;padding:0.3rem 0.7rem" onclick="window.addListaItem('${id}')">+</button>
     </div>`;
     el.appendChild(div);
@@ -3012,6 +3171,7 @@ window.submitLista=async function(){
   }
 };
 
+// Toggle semplice per item qty=1
 window.toggleListaItem=async function(listaId,itemKey){
   const myName=getVoterName();
   if(!myName) return showToast('Torna alla Hub per inserire il tuo nome!');
@@ -3022,7 +3182,96 @@ window.toggleListaItem=async function(listaId,itemKey){
     await update(ref(db,`liste/${listaId}/items/${itemKey}`),{who:newWho});
   }catch(e){
     showToast('Errore: '+e.message);
-    console.error('toggleListaItem error:',e);
+  }
+};
+
+// Overlay per item qty > 1
+window.openClaimsOverlay=function(listaId,itemKey){
+  const myName=getVoterName();
+  if(!myName) return showToast('Torna alla Hub per inserire il tuo nome!');
+  const item=_listaCache[listaId]?.items?.[itemKey];
+  if(!item) return;
+  const p=parseItemQty(item.name||'');
+  _claimsOverlayListaId=listaId;
+  _claimsOverlayItemKey=itemKey;
+  const sMyName=sanitize(myName);
+  _claimsOverlayMyQty=parseInt((item.claims||{})[sMyName])||0;
+
+  // Title
+  document.getElementById('claims-overlay-title').textContent=`📦 ${p.label} (${p.qty} richiesti)`;
+
+  // Render progress
+  const claimed=getItemClaimed(item);
+  const pct=Math.min(100,Math.round(claimed/p.qty*100));
+  document.getElementById('claims-overlay-progress').innerHTML=`
+    <div style="display:flex;justify-content:space-between;font-family:'VT323',monospace;font-size:1.2rem;margin-bottom:0.3rem">
+      <span>Prenotati</span><span>${claimed}/${p.qty}</span>
+    </div>
+    <div style="background:var(--bg2);border-radius:4px;height:12px;overflow:hidden">
+      <div style="background:${claimed>=p.qty?'var(--accent)':'var(--accent2)'};height:100%;width:${pct}%;border-radius:4px;transition:width 0.3s"></div>
+    </div>`;
+
+  // Render who claimed what
+  const claimers=getItemClaimers(item).filter(c=>c.sName!==sMyName);
+  let listHtml='';
+  if(claimers.length){
+    listHtml='<div style="font-size:0.95rem;font-family:sans-serif;color:var(--muted);margin-bottom:0.5rem">';
+    claimers.forEach(c=>{
+      listHtml+=`<div style="display:flex;align-items:center;gap:0.4rem;padding:0.25rem 0">${getAvatarHtml(c.displayName||c.sName,20)} <span>${esc(c.displayName||c.sName)}</span> <strong>×${c.qty}</strong></div>`;
+    });
+    listHtml+='</div>';
+  }
+  document.getElementById('claims-overlay-list').innerHTML=listHtml;
+
+  // Render my +/- controls
+  const othersTotal=claimers.reduce((s,c)=>s+c.qty,0);
+  const maxForMe=p.qty-othersTotal;
+  _renderClaimsMyControls(maxForMe);
+
+  document.getElementById('lista-claims-overlay').style.display='flex';
+};
+
+function _renderClaimsMyControls(max){
+  const el=document.getElementById('claims-overlay-mine');
+  el.innerHTML=`
+    <div style="display:flex;align-items:center;justify-content:center;gap:1rem">
+      <button class="btn btn-secondary" style="font-size:1.4rem;width:44px;height:44px;padding:0;display:flex;align-items:center;justify-content:center" onclick="window._claimsMinus()">−</button>
+      <span style="font-family:'VT323',monospace;font-size:2.5rem;min-width:50px;text-align:center" id="claims-my-qty">${_claimsOverlayMyQty}</span>
+      <button class="btn btn-secondary" style="font-size:1.4rem;width:44px;height:44px;padding:0;display:flex;align-items:center;justify-content:center" onclick="window._claimsPlus(${max})">+</button>
+    </div>
+    <div style="text-align:center;font-size:0.85rem;color:var(--muted);font-family:sans-serif;margin-top:0.3rem">Quante ne porti tu?</div>`;
+}
+
+window._claimsMinus=function(){
+  if(_claimsOverlayMyQty<=0) return;
+  _claimsOverlayMyQty--;
+  const el=document.getElementById('claims-my-qty');
+  if(el) el.textContent=_claimsOverlayMyQty;
+};
+
+window._claimsPlus=function(max){
+  if(_claimsOverlayMyQty>=max) return showToast('Massimo raggiunto!');
+  _claimsOverlayMyQty++;
+  const el=document.getElementById('claims-my-qty');
+  if(el) el.textContent=_claimsOverlayMyQty;
+};
+
+window.saveListaClaim=async function(){
+  if(!_claimsOverlayListaId||!_claimsOverlayItemKey) return;
+  const myName=getVoterName();
+  if(!myName) return;
+  const sMyName=sanitize(myName);
+  const path=`liste/${_claimsOverlayListaId}/items/${_claimsOverlayItemKey}/claims/${sMyName}`;
+  try{
+    if(_claimsOverlayMyQty>0){
+      await set(ref(db,path),_claimsOverlayMyQty);
+    } else {
+      await remove(ref(db,path));
+    }
+    document.getElementById('lista-claims-overlay').style.display='none';
+    showToast(_claimsOverlayMyQty>0?`Prenotate ${_claimsOverlayMyQty}! ✅`:'Prenotazione rimossa');
+  }catch(e){
+    showToast('Errore: '+e.message);
   }
 };
 
@@ -3038,7 +3287,6 @@ window.addListaItem=async function(listaId){
     inp.value='';
   }catch(e){
     showToast('Errore: '+e.message);
-    console.error('addListaItem error:',e);
   }
 };
 
@@ -3049,7 +3297,6 @@ window.deleteLista=async function(id){
     showToast('Lista eliminata');
   }catch(e){
     showToast('Errore: '+e.message);
-    console.error('deleteLista error:',e);
   }
 };
 
