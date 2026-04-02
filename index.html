@@ -3140,6 +3140,10 @@ function renderListe(){
     let itemsHtml=itemKeys.map(k=>{
       const it=items[k];
       const p=parseItemQty(it.name||'');
+      const price=parseFloat(it.price)||0;
+      const priceHtml=price>0
+        ? `<span class="lista-price" onclick="event.stopPropagation();window.setItemPrice('${id}','${k}')">${price.toFixed(2)}€</span>`
+        : `<span class="lista-price lista-price-empty" onclick="event.stopPropagation();window.setItemPrice('${id}','${k}')">€</span>`;
 
       if(p.qty<=1){
         // ── Semplice spunta ──
@@ -3148,6 +3152,7 @@ function renderListe(){
           <button onclick="window.toggleListaItem('${id}','${k}')" style="background:${isClaimed?'var(--accent)':'var(--bg2)'};border:2px solid var(--border);border-radius:4px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1rem;flex-shrink:0">${isClaimed?'✓':''}</button>
           <span style="flex:1;${isClaimed?'text-decoration:line-through;color:var(--muted)':''}">${esc(p.label)}</span>
           ${isClaimed?`<span style="font-size:0.85rem;color:var(--muted);font-family:sans-serif">${getAvatarHtml(it.who,18)} ${esc(it.who)}</span>`:''}
+          ${priceHtml}
           <button onclick="event.stopPropagation();window.editListaItem('${id}','${k}')" style="background:none;border:none;cursor:pointer;font-size:0.9rem;padding:0.2rem;opacity:0.5" title="Modifica">✏️</button>
           <button onclick="event.stopPropagation();window.deleteListaItem('${id}','${k}')" style="background:none;border:none;cursor:pointer;font-size:0.85rem;padding:0.2rem;opacity:0.5;color:var(--muted)" title="Rimuovi">✖</button>
         </div>`;
@@ -3164,6 +3169,7 @@ function renderListe(){
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.3rem">
             <span style="flex:1;font-weight:600;cursor:pointer;${isFull?'text-decoration:line-through;color:var(--muted)':''}" onclick="window.openClaimsOverlay('${id}','${k}')">${esc(p.label)}</span>
             <span style="font-family:'VT323',monospace;font-size:1.15rem;color:${isFull?'var(--accent)':'var(--text)'};cursor:pointer" onclick="window.openClaimsOverlay('${id}','${k}')">${claimed}/${p.qty}</span>
+            ${priceHtml}
             <button onclick="event.stopPropagation();window.editListaItem('${id}','${k}')" style="background:none;border:none;cursor:pointer;font-size:0.9rem;padding:0.2rem 0.3rem;opacity:0.5;margin-left:0.4rem" title="Modifica">✏️</button>
             <button onclick="event.stopPropagation();window.deleteListaItem('${id}','${k}')" style="background:none;border:none;cursor:pointer;font-size:0.85rem;padding:0.2rem;opacity:0.5;color:var(--muted)" title="Rimuovi">✖</button>
           </div>
@@ -3175,6 +3181,22 @@ function renderListe(){
       }
     }).join('');
 
+    // ── Totale e media a persona ──
+    let totalPrice=0;
+    itemKeys.forEach(k=>{
+      totalPrice+=parseFloat(items[k].price)||0;
+    });
+    const numPeople=parseInt(lista.participants)||0;
+    const avgPrice=numPeople>0?(totalPrice/numPeople):0;
+    const totalsHtml=`<div class="lista-totals">
+      <div class="lista-totals-row">
+        <span>👥 Partecipanti</span>
+        <span class="lista-participants-btn" onclick="window.setListaParticipants('${id}')">${numPeople>0?numPeople:'imposta'}</span>
+      </div>
+      ${totalPrice>0?`<div class="lista-totals-row"><span>💰 Totale</span><span class="lista-totals-val">${totalPrice.toFixed(2)}€</span></div>
+      ${numPeople>0?`<div class="lista-totals-row"><span>÷ Media a persona</span><span class="lista-totals-val">${avgPrice.toFixed(2)}€</span></div>`:''}`:''}
+    </div>`;
+
     div.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.8rem">
       <div><div class="section-title">${esc(lista.title||'Lista')}</div>
       <div style="font-size:0.85rem;color:var(--muted);font-family:sans-serif">${doneItems}/${totalItems} completati · da ${getAvatarHtml(lista.author,16)} ${esc(lista.author||'Anonimo')}</div></div>
@@ -3184,6 +3206,7 @@ function renderListe(){
       </div>
     </div>
     <div>${itemsHtml}</div>
+    ${totalsHtml}
     <div style="display:flex;gap:0.4rem;margin-top:0.8rem">
       <input type="text" id="add-item-${id}" placeholder="Aggiungi elemento (es. Birra x4)..." style="flex:1;font-size:1rem;padding:0.4rem 0.7rem">
       <button class="btn btn-secondary" style="font-size:0.9rem;padding:0.3rem 0.7rem" onclick="window.addListaItem('${id}')">+</button>
@@ -3360,6 +3383,23 @@ window.editLista=function(id){
     .catch(e=>showToast('Errore: '+e.message));
 };
 
+window.setListaParticipants=function(id){
+  const lista=_listaCache[id]; if(!lista) return;
+  const current=parseInt(lista.participants)||0;
+  const input=prompt('Numero di partecipanti:',current>0?current:'');
+  if(input===null) return;
+  const val=parseInt(input);
+  if(input.trim()===''||isNaN(val)||val<0){
+    update(ref(db,`liste/${id}`),{participants:null})
+      .then(()=>showToast('Partecipanti rimosso'))
+      .catch(e=>showToast('Errore: '+e.message));
+    return;
+  }
+  update(ref(db,`liste/${id}`),{participants:val})
+    .then(()=>showToast(`Partecipanti: ${val} 👥`))
+    .catch(e=>showToast('Errore: '+e.message));
+};
+
 window.editListaItem=function(listaId, itemKey){
   const item=_listaCache[listaId]?.items?.[itemKey];
   if(!item) return;
@@ -3377,6 +3417,27 @@ window.deleteListaItem=async function(listaId, itemKey){
     await remove(ref(db,`liste/${listaId}/items/${itemKey}`));
     showToast('Elemento rimosso');
   }catch(e){ showToast('Errore: '+e.message); }
+};
+
+window.setItemPrice=function(listaId, itemKey){
+  const item=_listaCache[listaId]?.items?.[itemKey];
+  if(!item) return;
+  const current=parseFloat(item.price)||0;
+  const p=parseItemQty(item.name||'');
+  const input=prompt(`Prezzo per "${p.label}" (€):`, current>0?current.toFixed(2):'');
+  if(input===null) return;
+  const val=parseFloat(input.replace(',','.'));
+  if(input.trim()===''||isNaN(val)){
+    // Rimuovi prezzo
+    update(ref(db,`liste/${listaId}/items/${itemKey}`),{price:null})
+      .then(()=>showToast('Prezzo rimosso'))
+      .catch(e=>showToast('Errore: '+e.message));
+    return;
+  }
+  if(val<0) return showToast('Il prezzo non può essere negativo');
+  update(ref(db,`liste/${listaId}/items/${itemKey}`),{price:val})
+    .then(()=>showToast(`Prezzo: ${val.toFixed(2)}€ 💰`))
+    .catch(e=>showToast('Errore: '+e.message));
 };
 
 // ── CITAZIONI ──────────────────────────────────────────
