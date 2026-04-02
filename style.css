@@ -801,28 +801,6 @@ body.dark-mode .jukebox-vol-slider::-moz-range-thumb { background:var(--accent);
   min-width:36px;text-align:right;
 }
 
-/* ── EMOJI REACTIONS ────────────────────────────────── */
-.reactions-bar {
-  display:flex;gap:0.3rem;flex-wrap:wrap;margin-top:0.4rem;
-}
-.reaction-btn {
-  background:var(--bg2);border:1.5px solid var(--border);border-radius:20px;
-  padding:0.15rem 0.5rem;font-size:0.85rem;cursor:pointer;
-  display:flex;align-items:center;gap:0.2rem;transition:all 0.12s;
-  color:var(--text);line-height:1.4;
-}
-.reaction-btn:hover, .reaction-btn:active { background:var(--accent-light);border-color:var(--accent2); }
-.reaction-active {
-  background:var(--accent-light) !important;border-color:var(--accent2) !important;
-}
-body.dark-mode .reaction-active {
-  background:rgba(82,183,136,0.2) !important;border-color:var(--accent) !important;
-}
-.reaction-count {
-  font-family:'VT323',monospace;font-size:0.95rem;color:var(--accent2);
-}
-body.dark-mode .reaction-count { color:var(--accent); }
-
 /* ── JUKEBOX SHUFFLE ACTIVE ─────────────────────────── */
 .jukebox-shuffle-active {
   background:var(--accent2) !important;color:var(--card) !important;

@@ -1542,38 +1542,6 @@ function drawPie(canvasId,counts,total){
 
 window.getVoterName=getVoterName;
 
-// ── EMOJI REACTIONS (shared helper) ──────────────────
-const REACTIONS_LIST = [
-  {key:'like',emoji:'👍'},{key:'heart',emoji:'❤️'},{key:'laugh',emoji:'😂'},
-  {key:'fire',emoji:'🔥'},{key:'wow',emoji:'😮'}
-];
-
-function renderReactionsBar(section, itemId, reactionsData){
-  const myName = getVoterName();
-  const sMyName = myName ? sanitize(myName) : '';
-  let html = '<div class="reactions-bar">';
-  REACTIONS_LIST.forEach(r=>{
-    const rData = (reactionsData||{})[r.key]||{};
-    const count = Object.keys(rData).length;
-    const iReacted = sMyName && rData[sMyName];
-    html += `<button class="reaction-btn${iReacted?' reaction-active':''}" onclick="event.stopPropagation();window.toggleReaction('${section}','${itemId}','${r.key}')">${r.emoji}${count?`<span class="reaction-count">${count}</span>`:''}</button>`;
-  });
-  html += '</div>';
-  return html;
-}
-
-window.toggleReaction = async function(section, itemId, reactionKey){
-  const myName = getVoterName();
-  if(!myName) return showToast('Inserisci il tuo nome nella Hub!');
-  const sMyName = sanitize(myName);
-  const path = `${section}/${itemId}/reactions/${reactionKey}/${sMyName}`;
-  try{
-    const snap = await get(ref(db, path));
-    if(snap.exists()) await remove(ref(db, path));
-    else await set(ref(db, path), true);
-  }catch(e){ showToast('Errore: '+e.message); }
-};
-
 // ── CHAT ──────────────────────────────────────────────
 function initChat(){
   const msgsRef=ref(db,'chat');
@@ -1581,14 +1549,14 @@ function initChat(){
     const box=document.getElementById('chat-messages');
     if(!box) return;
     const data=snap.val()||{};
-    const entries=Object.entries(data).sort((a,b)=>a[1].ts-b[1].ts);
+    const msgs=Object.values(data).sort((a,b)=>a.ts-b.ts);
     const myName=getVoterName();
-    if(entries.length===0){
+    if(msgs.length===0){
       box.innerHTML='<div class="chat-empty" id="chat-empty">Nessun messaggio ancora.<br>Scrivi il primo!</div>';
       return;
     }
     box.innerHTML='';
-    entries.forEach(([id,m])=>{
+    msgs.forEach(m=>{
       const isMe=m.name===myName;
       const wrap=document.createElement('div');
       wrap.style.display='flex'; wrap.style.flexDirection='column';
@@ -1601,10 +1569,6 @@ function initChat(){
       bubble.className='msg '+(isMe?'msg-user':'msg-other');
       bubble.textContent=m.text;
       wrap.appendChild(bubble);
-      // Reactions
-      const reactDiv=document.createElement('div');
-      reactDiv.innerHTML=renderReactionsBar('chat',id,m.reactions);
-      wrap.appendChild(reactDiv);
       box.appendChild(wrap);
     });
     box.scrollTop=box.scrollHeight;
@@ -2772,7 +2736,6 @@ function renderBacheca(data){
         <span class="bacheca-time">${formatBachecaTime(post.ts)}</span>
       </div>
       <div class="bacheca-text">${esc(post.text)}</div>
-      ${renderReactionsBar('bacheca',id,post.reactions)}
       <button class="bacheca-del" onclick="window.deleteBachecaPost('${id}')" title="Elimina">✖</button>`;
     el.appendChild(div);
   });
@@ -3180,6 +3143,8 @@ function renderListe(){
           <button onclick="window.toggleListaItem('${id}','${k}')" style="background:${isClaimed?'var(--accent)':'var(--bg2)'};border:2px solid var(--border);border-radius:4px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1rem;flex-shrink:0">${isClaimed?'✓':''}</button>
           <span style="flex:1;${isClaimed?'text-decoration:line-through;color:var(--muted)':''}">${esc(p.label)}</span>
           ${isClaimed?`<span style="font-size:0.85rem;color:var(--muted);font-family:sans-serif">${getAvatarHtml(it.who,18)} ${esc(it.who)}</span>`:''}
+          <button onclick="event.stopPropagation();window.editListaItem('${id}','${k}')" style="background:none;border:none;cursor:pointer;font-size:0.9rem;padding:0.2rem;opacity:0.5" title="Modifica">✏️</button>
+          <button onclick="event.stopPropagation();window.deleteListaItem('${id}','${k}')" style="background:none;border:none;cursor:pointer;font-size:0.85rem;padding:0.2rem;opacity:0.5;color:var(--muted)" title="Rimuovi">✖</button>
         </div>`;
       } else {
         // ── Quantità > 1: progress bar + tap per overlay ──
@@ -3190,12 +3155,14 @@ function renderListe(){
         const claimersStr=claimers.map(c=>
           `${getAvatarHtml(c.displayName||c.sName,16)} ${esc(c.displayName||c.sName)}${c.qty>1?' ×'+c.qty:''}`
         ).join(', ');
-        return `<div style="padding:0.5rem 0;border-bottom:1px dashed var(--bg2);cursor:pointer" onclick="window.openClaimsOverlay('${id}','${k}')">
+        return `<div style="padding:0.5rem 0;border-bottom:1px dashed var(--bg2)">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.3rem">
-            <span style="font-weight:600;${isFull?'text-decoration:line-through;color:var(--muted)':''}">${esc(p.label)}</span>
-            <span style="font-family:'VT323',monospace;font-size:1.15rem;color:${isFull?'var(--accent)':'var(--text)'}">${claimed}/${p.qty}</span>
+            <span style="flex:1;font-weight:600;cursor:pointer;${isFull?'text-decoration:line-through;color:var(--muted)':''}" onclick="window.openClaimsOverlay('${id}','${k}')">${esc(p.label)}</span>
+            <span style="font-family:'VT323',monospace;font-size:1.15rem;color:${isFull?'var(--accent)':'var(--text)'};cursor:pointer" onclick="window.openClaimsOverlay('${id}','${k}')">${claimed}/${p.qty}</span>
+            <button onclick="event.stopPropagation();window.editListaItem('${id}','${k}')" style="background:none;border:none;cursor:pointer;font-size:0.9rem;padding:0.2rem 0.3rem;opacity:0.5;margin-left:0.4rem" title="Modifica">✏️</button>
+            <button onclick="event.stopPropagation();window.deleteListaItem('${id}','${k}')" style="background:none;border:none;cursor:pointer;font-size:0.85rem;padding:0.2rem;opacity:0.5;color:var(--muted)" title="Rimuovi">✖</button>
           </div>
-          <div style="background:var(--bg2);border-radius:3px;height:8px;overflow:hidden">
+          <div style="background:var(--bg2);border-radius:3px;height:8px;overflow:hidden;cursor:pointer" onclick="window.openClaimsOverlay('${id}','${k}')">
             <div style="background:${isFull?'var(--accent)':'var(--accent2)'};height:100%;width:${pct}%;border-radius:3px;transition:width 0.3s"></div>
           </div>
           ${claimers.length?`<div style="font-size:0.8rem;color:var(--muted);font-family:sans-serif;margin-top:0.25rem">${claimersStr}</div>`:''}
@@ -3388,6 +3355,25 @@ window.editLista=function(id){
     .catch(e=>showToast('Errore: '+e.message));
 };
 
+window.editListaItem=function(listaId, itemKey){
+  const item=_listaCache[listaId]?.items?.[itemKey];
+  if(!item) return;
+  const newName=prompt('Modifica elemento (usa "x5" per quantità):',item.name||'');
+  if(newName===null) return;
+  if(!newName.trim()) return showToast('Il nome non può essere vuoto');
+  update(ref(db,`liste/${listaId}/items/${itemKey}`),{name:newName.trim()})
+    .then(()=>showToast('Elemento aggiornato! ✏️'))
+    .catch(e=>showToast('Errore: '+e.message));
+};
+
+window.deleteListaItem=async function(listaId, itemKey){
+  if(!confirm('Rimuovere questo elemento dalla lista?')) return;
+  try{
+    await remove(ref(db,`liste/${listaId}/items/${itemKey}`));
+    showToast('Elemento rimosso');
+  }catch(e){ showToast('Errore: '+e.message); }
+};
+
 // ── CITAZIONI ──────────────────────────────────────────
 let _citazioniUnsub = null;
 let _citazioniCache = {};
@@ -3430,7 +3416,6 @@ function renderCitazioni(){
         <div class="citazione-who">— ${esc(cit.who||'Anonimo')}</div>
         <div class="citazione-meta">${whenHtml?whenHtml+' · ':''}${getAvatarHtml(cit.addedBy,14)} ${esc(cit.addedBy||'')}</div>
       </div>
-      ${renderReactionsBar('citazioni',id,cit.reactions)}
       <div class="citazione-actions">
         <button class="evento-del" onclick="window.editCitazione('${id}')" title="Modifica" style="position:static">✏️</button>
         <button class="evento-del" onclick="window.deleteCitazione('${id}')" title="Elimina" style="position:static">✖</button>
