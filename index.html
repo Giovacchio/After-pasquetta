@@ -3625,7 +3625,10 @@ function _jkAssertMediaSession(){
     artist: track.addedBy || 'After Pasquetta',
     album: 'Jukebox'
   });
-  navigator.mediaSession.setActionHandler('play', ()=>{ if(_jkReady && _jkCurrentId) _jkPlayer.playVideo(); _jkStartSilentAudio(); });
+  navigator.mediaSession.setActionHandler('play', ()=>{
+    if(_jkReady && _jkCurrentId) _jkPlayer.playVideo();
+    if(_jkSilentAudio && _jkSilentAudio.paused) _jkSilentAudio.play().catch(()=>{});
+  });
   navigator.mediaSession.setActionHandler('pause', ()=>{ if(_jkReady && _jkCurrentId) _jkPlayer.pauseVideo(); });
   navigator.mediaSession.setActionHandler('nexttrack', ()=>{ window.jkNext(); });
   navigator.mediaSession.setActionHandler('previoustrack', ()=>{ window.jkPrev(); });
@@ -3637,17 +3640,18 @@ function _jkStartSilentAudio(){
   a.play().catch(()=>{});
   // Assert our session now, then again after YouTube's iframe overrides it
   _jkAssertMediaSession();
-  setTimeout(_jkAssertMediaSession, 500);
+  setTimeout(_jkAssertMediaSession, 300);
+  setTimeout(_jkAssertMediaSession, 800);
   setTimeout(_jkAssertMediaSession, 1500);
   setTimeout(_jkAssertMediaSession, 3000);
-  // Keep re-asserting every 5s while playing
+  // Keep re-asserting every 2s (YouTube iframe constantly tries to steal the session)
   if(_jkMediaSessionInterval) clearInterval(_jkMediaSessionInterval);
   _jkMediaSessionInterval = setInterval(()=>{
-    if(!_jkPlaying){ clearInterval(_jkMediaSessionInterval); _jkMediaSessionInterval=null; return; }
+    if(!_jkCurrentId){ clearInterval(_jkMediaSessionInterval); _jkMediaSessionInterval=null; return; }
     _jkAssertMediaSession();
-    // Also make sure silent audio is still playing (browser can kill it)
-    if(_jkSilentAudio && _jkSilentAudio.paused) _jkSilentAudio.play().catch(()=>{});
-  }, 5000);
+    // Make sure silent audio is still playing (browser can kill it)
+    if(_jkSilentAudio && _jkSilentAudio.paused && _jkPlaying) _jkSilentAudio.play().catch(()=>{});
+  }, 2000);
 }
 
 function _jkStopSilentAudio(){
@@ -3686,24 +3690,38 @@ function loadYouTubeAPI(){
 window.onYouTubeIframeAPIReady = function(){
   _jkPlayer = new YT.Player('jukebox-yt-player', {
     height: '68', width: '120',
-    playerVars: { autoplay:0, controls:0, modestbranding:1, rel:0, fs:0, playsinline:1 },
+    playerVars: { autoplay:0, controls:0, modestbranding:1, rel:0, fs:0, playsinline:1, loop:0 },
     events: {
       onReady: function(){ _jkReady = true; _jkPlayer.setVolume(_jkVolume); },
       onStateChange: function(e){
+        console.log('[JK] YT state:', e.data, 'shuffle:', _jkShuffleOn, 'playlist:', _jkPlaylist.length);
         if(e.data === YT.PlayerState.ENDED){
-          _jkStopSeekUpdater();
-          _jkStopSilentAudio();
-          // Reset seek bar
-          const bar=document.getElementById('jk-seek-bar'); if(bar) bar.value=0;
-          const elCur=document.getElementById('jk-time-current'); if(elCur) elCur.textContent='0:00';
-          // Shuffle mode: random next; otherwise sequential
-          if(_jkShuffleOn && _jkPlaylist.length > 1){
-            let r; do { r = Math.floor(Math.random()*_jkPlaylist.length); } while(_jkPlaylist[r]===_jkCurrentId);
-            window.jkPlayTrack(_jkPlaylist[r]);
-          } else { window.jkNext(); }
+          _jkHandleTrackEnd();
         }
-        if(e.data === YT.PlayerState.PLAYING){ _jkPlaying=true; const b=document.getElementById('jukebox-play-btn'); if(b) b.textContent='⏸'; _jkStartSeekUpdater(); _jkStartSilentAudio(); }
-        if(e.data === YT.PlayerState.PAUSED){ _jkPlaying=false; const b=document.getElementById('jukebox-play-btn'); if(b) b.textContent='▶'; _jkStopSilentAudio(); _jkAssertMediaSession(); }
+        if(e.data === YT.PlayerState.PLAYING){
+          _jkPlaying=true;
+          const b=document.getElementById('jukebox-play-btn'); if(b) b.textContent='⏸';
+          _jkStartSeekUpdater();
+          // Re-assert media session (silent audio already started in jkPlayTrack)
+          _jkAssertMediaSession();
+          // Also ensure silent audio is running (for auto-advance cases)
+          if(_jkSilentAudio && _jkSilentAudio.paused) _jkSilentAudio.play().catch(()=>{});
+        }
+        if(e.data === YT.PlayerState.PAUSED){
+          _jkPlaying=false;
+          const b=document.getElementById('jukebox-play-btn'); if(b) b.textContent='▶';
+          _jkAssertMediaSession();
+          // FALLBACK: on mobile, ENDED may not fire — check if we're at the end
+          try{
+            const cur=_jkPlayer.getCurrentTime()||0;
+            const dur=_jkPlayer.getDuration()||0;
+            if(dur > 0 && cur >= dur - 1.5){
+              console.log('[JK] PAUSED at end of track — treating as ENDED');
+              _jkHandleTrackEnd();
+            }
+          }catch(ex){}
+        }
+      }
       }
     }
   });
@@ -3863,12 +3881,46 @@ window.jkFilterPlaylist = function(){
   renderJukebox();
 };
 
+// ── Track end handler (debounced — ENDED + PAUSED-at-end may both fire) ──
+let _jkEndHandled = null; // track ID of last handled end
+function _jkHandleTrackEnd(){
+  // Debounce: don't handle end twice for the same track
+  if(_jkEndHandled === _jkCurrentId) return;
+  _jkEndHandled = _jkCurrentId;
+  console.log('[JK] handleTrackEnd — shuffle:', _jkShuffleOn, 'playlist len:', _jkPlaylist.length, 'current:', _jkCurrentId);
+  _jkStopSeekUpdater();
+  // Reset seek bar
+  const bar=document.getElementById('jk-seek-bar'); if(bar) bar.value=0;
+  const elCur=document.getElementById('jk-time-current'); if(elCur) elCur.textContent='0:00';
+  // Advance to next track
+  if(_jkPlaylist.length <= 1){
+    // Only 1 track (or none) — stop playback, don't loop
+    _jkPlaying = false;
+    _jkStopSilentAudio();
+    const b=document.getElementById('jukebox-play-btn'); if(b) b.textContent='▶';
+    try{ _jkPlayer.stopVideo(); }catch(e){}
+    return;
+  }
+  if(_jkShuffleOn){
+    let r; do { r = Math.floor(Math.random()*_jkPlaylist.length); } while(_jkPlaylist[r]===_jkCurrentId);
+    window.jkPlayTrack(_jkPlaylist[r]);
+  } else {
+    let idx = _jkPlaylist.indexOf(_jkCurrentId);
+    if(idx === -1) idx = 0; // fallback if track not in playlist
+    else idx = (idx + 1) % _jkPlaylist.length;
+    window.jkPlayTrack(_jkPlaylist[idx]);
+  }
+}
+
 // ── Player controls ──
 window.jkPlayTrack = function(id){
   const track = _jukeboxCache[id];
   if(!track || !track.videoId) return;
   if(!_jkReady){ showToast('Player in caricamento...'); return; }
   _jkCurrentId = id;
+  _jkEndHandled = null; // Reset debounce for new track
+  // Stop first to ensure clean state (prevents YouTube auto-replay glitch)
+  try{ _jkPlayer.stopVideo(); }catch(e){}
   _jkPlayer.loadVideoById(track.videoId);
   _jkPlayer.setVolume(_jkVolume);
   _jkPlaying = true;
@@ -3879,6 +3931,9 @@ window.jkPlayTrack = function(id){
   document.getElementById('jukebox-now-title').textContent = track.name||'Senza titolo';
   document.getElementById('jukebox-play-btn').textContent = '⏸';
   document.getElementById('jukebox-player-bar').style.display = '';
+  // Start silent audio HERE — this is inside a user gesture (onclick)
+  // so audio.play() will succeed on mobile
+  _jkStartSilentAudio();
   renderJukebox();
 };
 
@@ -3894,7 +3949,8 @@ window.jkNext = function(){
     window.jkPlayTrack(_jkPlaylist[r]);
   } else {
     let idx = _jkPlaylist.indexOf(_jkCurrentId);
-    idx = (idx + 1) % _jkPlaylist.length;
+    if(idx === -1) idx = 0;
+    else idx = (idx + 1) % _jkPlaylist.length;
     window.jkPlayTrack(_jkPlaylist[idx]);
   }
 };
@@ -3906,7 +3962,8 @@ window.jkPrev = function(){
     window.jkPlayTrack(_jkPlaylist[r]);
   } else {
     let idx = _jkPlaylist.indexOf(_jkCurrentId);
-    idx = (idx - 1 + _jkPlaylist.length) % _jkPlaylist.length;
+    if(idx === -1) idx = 0;
+    else idx = (idx - 1 + _jkPlaylist.length) % _jkPlaylist.length;
     window.jkPlayTrack(_jkPlaylist[idx]);
   }
 };
