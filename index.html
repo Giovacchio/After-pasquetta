@@ -1490,7 +1490,10 @@ function renderQPanel(qKeys,questions,idx){
   setTimeout(()=>{
     drawPie(`pie-${idx}`,counts,totalTicks);
     const leg=document.getElementById(`legend-${idx}`);
-    q.options.forEach((opt,i)=>{
+    // Ordina opzioni per voti decrescenti (a parità mantiene ordine originale)
+    const sortedIndices = q.options.map((_,i)=>i).sort((a,b)=> counts[b]-counts[a] || a-b);
+    sortedIndices.forEach(i=>{
+      const opt=q.options[i];
       const pct=totalTicks>0?Math.round((counts[i]/totalTicks)*100):0;
       const d=document.createElement('div'); d.className='legend-item';
       d.innerHTML=`<div class="legend-dot" style="background:${COLORS[i%COLORS.length]}"></div>
@@ -1505,10 +1508,10 @@ function renderQPanel(qKeys,questions,idx){
       const d=document.createElement('div'); d.className='voter-row';
       if(Array.isArray(v)){
         const tags=v.map(i=>`<span class="vote-tag" style="background:${COLORS[i%COLORS.length]}22;color:${COLORS[i%COLORS.length]}">${esc(q.options[i]||String(i))}</span>`).join(' ');
-        d.innerHTML=`<span style="flex:1">${getAvatarHtml(voter,18)} ${esc(voter)}</span>${tags}`;
+        d.innerHTML=`<span class="voter-name-col">${getAvatarHtml(voter,18)} ${esc(voter)}</span><span class="voter-tags-col">${tags}</span>`;
       } else {
         const color=COLORS[v%COLORS.length];
-        d.innerHTML=`<span style="flex:1">${getAvatarHtml(voter,18)} ${esc(voter)}</span><span class="vote-tag" style="background:${color}22;color:${color}">${esc(q.options[v]||String(v))}</span>`;
+        d.innerHTML=`<span class="voter-name-col">${getAvatarHtml(voter,18)} ${esc(voter)}</span><span class="voter-tags-col"><span class="vote-tag" style="background:${color}22;color:${color}">${esc(q.options[v]||String(v))}</span></span>`;
       }
       vd.appendChild(d);
     });}
@@ -3627,8 +3630,8 @@ window.onYouTubeIframeAPIReady = function(){
             window.jkPlayTrack(_jkPlaylist[r]);
           } else { window.jkNext(); }
         }
-        if(e.data === YT.PlayerState.PLAYING){ _jkPlaying=true; const b=document.getElementById('jukebox-play-btn'); if(b) b.textContent='⏸'; _jkStartSeekUpdater(); }
-        if(e.data === YT.PlayerState.PAUSED){ _jkPlaying=false; const b=document.getElementById('jukebox-play-btn'); if(b) b.textContent='▶'; }
+        if(e.data === YT.PlayerState.PLAYING){ _jkPlaying=true; const b=document.getElementById('jukebox-play-btn'); if(b) b.textContent='⏸'; _jkStartSeekUpdater(); if('mediaSession' in navigator) navigator.mediaSession.playbackState='playing'; }
+        if(e.data === YT.PlayerState.PAUSED){ _jkPlaying=false; const b=document.getElementById('jukebox-play-btn'); if(b) b.textContent='▶'; if('mediaSession' in navigator) navigator.mediaSession.playbackState='paused'; }
       }
     }
   });
@@ -3804,6 +3807,18 @@ window.jkPlayTrack = function(id){
   document.getElementById('jukebox-now-title').textContent = track.name||'Senza titolo';
   document.getElementById('jukebox-play-btn').textContent = '⏸';
   document.getElementById('jukebox-player-bar').style.display = '';
+  // Media Session API: lock-screen / notification controls
+  if('mediaSession' in navigator){
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: track.name || 'Senza titolo',
+      artist: track.addedBy || 'After Pasquetta',
+      album: 'Jukebox'
+    });
+    navigator.mediaSession.setActionHandler('play', ()=>{ if(_jkReady && _jkCurrentId) _jkPlayer.playVideo(); });
+    navigator.mediaSession.setActionHandler('pause', ()=>{ if(_jkReady && _jkCurrentId) _jkPlayer.pauseVideo(); });
+    navigator.mediaSession.setActionHandler('nexttrack', ()=>{ window.jkNext(); });
+    navigator.mediaSession.setActionHandler('previoustrack', ()=>{ window.jkPrev(); });
+  }
   renderJukebox();
 };
 
@@ -3814,16 +3829,26 @@ window.jkTogglePlay = function(){
 
 window.jkNext = function(){
   if(_jkPlaylist.length === 0) return;
-  let idx = _jkPlaylist.indexOf(_jkCurrentId);
-  idx = (idx + 1) % _jkPlaylist.length;
-  window.jkPlayTrack(_jkPlaylist[idx]);
+  if(_jkShuffleOn && _jkPlaylist.length > 1){
+    let r; do { r = Math.floor(Math.random()*_jkPlaylist.length); } while(_jkPlaylist[r]===_jkCurrentId);
+    window.jkPlayTrack(_jkPlaylist[r]);
+  } else {
+    let idx = _jkPlaylist.indexOf(_jkCurrentId);
+    idx = (idx + 1) % _jkPlaylist.length;
+    window.jkPlayTrack(_jkPlaylist[idx]);
+  }
 };
 
 window.jkPrev = function(){
   if(_jkPlaylist.length === 0) return;
-  let idx = _jkPlaylist.indexOf(_jkCurrentId);
-  idx = (idx - 1 + _jkPlaylist.length) % _jkPlaylist.length;
-  window.jkPlayTrack(_jkPlaylist[idx]);
+  if(_jkShuffleOn && _jkPlaylist.length > 1){
+    let r; do { r = Math.floor(Math.random()*_jkPlaylist.length); } while(_jkPlaylist[r]===_jkCurrentId);
+    window.jkPlayTrack(_jkPlaylist[r]);
+  } else {
+    let idx = _jkPlaylist.indexOf(_jkCurrentId);
+    idx = (idx - 1 + _jkPlaylist.length) % _jkPlaylist.length;
+    window.jkPlayTrack(_jkPlaylist[idx]);
+  }
 };
 
 window.jkToggleShuffle = function(){
