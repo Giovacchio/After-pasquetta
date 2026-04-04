@@ -3592,32 +3592,8 @@ let _jkPlaylistsCache = {};
 let _jkPlaylistsUnsub = null;
 let _jkActiveFilter = ''; // '' = all, else playlist ID
 
-// Silent audio element: keeps Media Session alive when app is minimized
-// Tiny 1-second silent WAV generated in memory, looped
-let _jkSilentAudio = null;
-let _jkMediaSessionInterval = null;
-
-function _jkEnsureSilentAudio(){
-  if(_jkSilentAudio) return _jkSilentAudio;
-  // Minimal valid WAV: 1s silence, 8kHz mono 8-bit
-  const sampleRate=8000, duration=1, numSamples=sampleRate*duration;
-  const buffer=new ArrayBuffer(44+numSamples);
-  const v=new DataView(buffer);
-  function writeStr(o,s){for(let i=0;i<s.length;i++) v.setUint8(o+i,s.charCodeAt(i));}
-  writeStr(0,'RIFF'); v.setUint32(4,36+numSamples,true); writeStr(8,'WAVE');
-  writeStr(12,'fmt '); v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
-  v.setUint32(24,sampleRate,true); v.setUint32(28,sampleRate,true); v.setUint16(32,1,true); v.setUint16(34,8,true);
-  writeStr(36,'data'); v.setUint32(40,numSamples,true);
-  for(let i=0;i<numSamples;i++) v.setUint8(44+i,128); // silence = 128 for 8-bit PCM
-  const blob=new Blob([buffer],{type:'audio/wav'});
-  _jkSilentAudio=new Audio(URL.createObjectURL(blob));
-  _jkSilentAudio.loop=true;
-  _jkSilentAudio.volume=0.01;
-  return _jkSilentAudio;
-}
-
-// Re-assert our Media Session over YouTube's — called repeatedly while playing
-function _jkAssertMediaSession(){
+// Simple Media Session setup — called once per track, no aggressive re-assertion
+function _jkSetupMediaSession(){
   if(!('mediaSession' in navigator) || !_jkCurrentId) return;
   const track = _jukeboxCache[_jkCurrentId];
   if(!track) return;
@@ -3626,46 +3602,11 @@ function _jkAssertMediaSession(){
     artist: track.addedBy || 'After Pasquetta',
     album: 'Jukebox'
   });
-  navigator.mediaSession.setActionHandler('play', ()=>{
-    if(_jkReady && _jkCurrentId) _jkPlayer.playVideo();
-    if(_jkSilentAudio && _jkSilentAudio.paused) _jkSilentAudio.play().catch(()=>{});
-  });
+  navigator.mediaSession.setActionHandler('play', ()=>{ if(_jkReady && _jkCurrentId) _jkPlayer.playVideo(); });
   navigator.mediaSession.setActionHandler('pause', ()=>{ if(_jkReady && _jkCurrentId) _jkPlayer.pauseVideo(); });
   navigator.mediaSession.setActionHandler('nexttrack', ()=>{ window.jkNext(); });
   navigator.mediaSession.setActionHandler('previoustrack', ()=>{ window.jkPrev(); });
-  navigator.mediaSession.playbackState = _jkPlaying ? 'playing' : 'paused';
 }
-
-function _jkStartSilentAudio(){
-  const a=_jkEnsureSilentAudio();
-  a.play().catch(()=>{});
-  // Assert our session now, then again after YouTube's iframe overrides it
-  _jkAssertMediaSession();
-  setTimeout(_jkAssertMediaSession, 300);
-  setTimeout(_jkAssertMediaSession, 800);
-  setTimeout(_jkAssertMediaSession, 1500);
-  setTimeout(_jkAssertMediaSession, 3000);
-  // Keep re-asserting every 2s (YouTube iframe constantly tries to steal the session)
-  if(_jkMediaSessionInterval) clearInterval(_jkMediaSessionInterval);
-  _jkMediaSessionInterval = setInterval(()=>{
-    if(!_jkCurrentId){ clearInterval(_jkMediaSessionInterval); _jkMediaSessionInterval=null; return; }
-    _jkAssertMediaSession();
-    // Make sure silent audio is still playing (browser can kill it)
-    if(_jkSilentAudio && _jkSilentAudio.paused && _jkPlaying) _jkSilentAudio.play().catch(()=>{});
-  }, 2000);
-}
-
-function _jkStopSilentAudio(){
-  if(_jkSilentAudio){ _jkSilentAudio.pause(); }
-  if(_jkMediaSessionInterval){ clearInterval(_jkMediaSessionInterval); _jkMediaSessionInterval=null; }
-}
-
-// When app comes back to foreground, re-assert session and restart silent audio if needed
-document.addEventListener('visibilitychange', ()=>{
-  if(document.visibilityState === 'visible' && _jkPlaying && _jkCurrentId){
-    _jkStartSilentAudio();
-  }
-});
 
 function extractYouTubeId(url){
   if(!url) return null;
@@ -3701,18 +3642,13 @@ window.onYouTubeIframeAPIReady = function(){
         }
         if(e.data === YT.PlayerState.PLAYING){
           _jkPlaying=true;
-          _jkLoadingTrack=false; // Track loaded — safe to check PAUSED end-of-track again
+          _jkLoadingTrack=false;
           const b=document.getElementById('jukebox-play-btn'); if(b) b.textContent='⏸';
           _jkStartSeekUpdater();
-          // Re-assert media session (silent audio already started in jkPlayTrack)
-          _jkAssertMediaSession();
-          // Also ensure silent audio is running (for auto-advance cases)
-          if(_jkSilentAudio && _jkSilentAudio.paused) _jkSilentAudio.play().catch(()=>{});
         }
         if(e.data === YT.PlayerState.PAUSED){
           _jkPlaying=false;
           const b=document.getElementById('jukebox-play-btn'); if(b) b.textContent='▶';
-          _jkAssertMediaSession();
           // FALLBACK: on mobile, ENDED may not fire — check if we're at the end
           // Skip this check if we're in the middle of loading a new track (stopVideo triggers PAUSED)
           if(!_jkLoadingTrack){
@@ -3900,7 +3836,6 @@ function _jkHandleTrackEnd(){
   if(_jkPlaylist.length <= 1){
     // Only 1 track (or none) — stop playback, don't loop
     _jkPlaying = false;
-    _jkStopSilentAudio();
     const b=document.getElementById('jukebox-play-btn'); if(b) b.textContent='▶';
     try{ _jkPlayer.stopVideo(); }catch(e){}
     return;
@@ -3937,9 +3872,8 @@ window.jkPlayTrack = function(id){
   document.getElementById('jukebox-now-title').textContent = track.name||'Senza titolo';
   document.getElementById('jukebox-play-btn').textContent = '⏸';
   document.getElementById('jukebox-player-bar').style.display = '';
-  // Start silent audio HERE — this is inside a user gesture (onclick)
-  // so audio.play() will succeed on mobile
-  _jkStartSilentAudio();
+  // Setup media session (lock screen metadata + handlers) — single call, no aggressive loop
+  _jkSetupMediaSession();
   renderJukebox();
 };
 
@@ -4058,7 +3992,7 @@ window.jkDeleteTrack = async function(id){
     if(_jkCurrentId===id){
       const idx=_jkPlaylist.indexOf(id);
       if(_jkPlaylist.length>1){ window.jkPlayTrack(_jkPlaylist[(idx+1)%_jkPlaylist.length]); }
-      else { _jkCurrentId=null;_jkPlaying=false; if(_jkReady)_jkPlayer.stopVideo(); _jkStopSeekUpdater(); _jkStopSilentAudio(); document.getElementById('jukebox-player-bar').style.display='none'; }
+      else { _jkCurrentId=null;_jkPlaying=false; if(_jkReady)_jkPlayer.stopVideo(); _jkStopSeekUpdater(); document.getElementById('jukebox-player-bar').style.display='none'; }
     }
     await remove(ref(db,`jukebox/${id}`));
     showToast('Canzone rimossa');
