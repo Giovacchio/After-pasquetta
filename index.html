@@ -3584,6 +3584,7 @@ let _jkPlaylist = []; // currently active (filtered) track IDs
 let _jkAllTracks = []; // all track IDs sorted by ts
 let _jkShuffleOn = false;
 let _jkEditingId = null;
+let _jkLoadingTrack = false; // Guard: prevents PAUSED end-of-track check during track switch
 let _jkVolume = 80;
 let _jkMuted = false;
 let _jkVolumeBeforeMute = 80;
@@ -3700,6 +3701,7 @@ window.onYouTubeIframeAPIReady = function(){
         }
         if(e.data === YT.PlayerState.PLAYING){
           _jkPlaying=true;
+          _jkLoadingTrack=false; // Track loaded — safe to check PAUSED end-of-track again
           const b=document.getElementById('jukebox-play-btn'); if(b) b.textContent='⏸';
           _jkStartSeekUpdater();
           // Re-assert media session (silent audio already started in jkPlayTrack)
@@ -3712,16 +3714,18 @@ window.onYouTubeIframeAPIReady = function(){
           const b=document.getElementById('jukebox-play-btn'); if(b) b.textContent='▶';
           _jkAssertMediaSession();
           // FALLBACK: on mobile, ENDED may not fire — check if we're at the end
-          try{
-            const cur=_jkPlayer.getCurrentTime()||0;
-            const dur=_jkPlayer.getDuration()||0;
-            if(dur > 0 && cur >= dur - 1.5){
-              console.log('[JK] PAUSED at end of track — treating as ENDED');
-              _jkHandleTrackEnd();
-            }
-          }catch(ex){}
+          // Skip this check if we're in the middle of loading a new track (stopVideo triggers PAUSED)
+          if(!_jkLoadingTrack){
+            try{
+              const cur=_jkPlayer.getCurrentTime()||0;
+              const dur=_jkPlayer.getDuration()||0;
+              if(dur > 0 && cur >= dur - 1.5){
+                console.log('[JK] PAUSED at end of track — treating as ENDED');
+                _jkHandleTrackEnd();
+              }
+            }catch(ex){}
+          }
         }
-      }
       }
     }
   });
@@ -3919,6 +3923,8 @@ window.jkPlayTrack = function(id){
   if(!_jkReady){ showToast('Player in caricamento...'); return; }
   _jkCurrentId = id;
   _jkEndHandled = null; // Reset debounce for new track
+  _jkLoadingTrack = true; // Guard: block PAUSED end-of-track check until PLAYING fires
+  setTimeout(()=>{ _jkLoadingTrack=false; }, 5000); // Safety: reset after 5s in case PLAYING never fires
   // Stop first to ensure clean state (prevents YouTube auto-replay glitch)
   try{ _jkPlayer.stopVideo(); }catch(e){}
   _jkPlayer.loadVideoById(track.videoId);
