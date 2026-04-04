@@ -3591,6 +3591,35 @@ let _jkPlaylistsCache = {};
 let _jkPlaylistsUnsub = null;
 let _jkActiveFilter = ''; // '' = all, else playlist ID
 
+// Silent audio element: keeps Media Session alive when app is minimized
+// Tiny 1-second silent WAV in base64, looped
+let _jkSilentAudio = null;
+function _jkEnsureSilentAudio(){
+  if(_jkSilentAudio) return _jkSilentAudio;
+  // Minimal valid WAV: 1s silence, 8kHz mono 8-bit
+  const sampleRate=8000, duration=1, numSamples=sampleRate*duration;
+  const buffer=new ArrayBuffer(44+numSamples);
+  const v=new DataView(buffer);
+  function writeStr(o,s){for(let i=0;i<s.length;i++) v.setUint8(o+i,s.charCodeAt(i));}
+  writeStr(0,'RIFF'); v.setUint32(4,36+numSamples,true); writeStr(8,'WAVE');
+  writeStr(12,'fmt '); v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
+  v.setUint32(24,sampleRate,true); v.setUint32(28,sampleRate,true); v.setUint16(32,1,true); v.setUint16(34,8,true);
+  writeStr(36,'data'); v.setUint32(40,numSamples,true);
+  for(let i=0;i<numSamples;i++) v.setUint8(44+i,128); // silence = 128 for 8-bit PCM
+  const blob=new Blob([buffer],{type:'audio/wav'});
+  _jkSilentAudio=new Audio(URL.createObjectURL(blob));
+  _jkSilentAudio.loop=true;
+  _jkSilentAudio.volume=0.01; // near-silent but > 0 so browser keeps session
+  return _jkSilentAudio;
+}
+function _jkStartSilentAudio(){
+  const a=_jkEnsureSilentAudio();
+  a.play().catch(()=>{});
+}
+function _jkStopSilentAudio(){
+  if(_jkSilentAudio){ _jkSilentAudio.pause(); }
+}
+
 function extractYouTubeId(url){
   if(!url) return null;
   let m = url.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
@@ -3621,6 +3650,7 @@ window.onYouTubeIframeAPIReady = function(){
       onStateChange: function(e){
         if(e.data === YT.PlayerState.ENDED){
           _jkStopSeekUpdater();
+          _jkStopSilentAudio();
           // Reset seek bar
           const bar=document.getElementById('jk-seek-bar'); if(bar) bar.value=0;
           const elCur=document.getElementById('jk-time-current'); if(elCur) elCur.textContent='0:00';
@@ -3630,8 +3660,8 @@ window.onYouTubeIframeAPIReady = function(){
             window.jkPlayTrack(_jkPlaylist[r]);
           } else { window.jkNext(); }
         }
-        if(e.data === YT.PlayerState.PLAYING){ _jkPlaying=true; const b=document.getElementById('jukebox-play-btn'); if(b) b.textContent='⏸'; _jkStartSeekUpdater(); if('mediaSession' in navigator) navigator.mediaSession.playbackState='playing'; }
-        if(e.data === YT.PlayerState.PAUSED){ _jkPlaying=false; const b=document.getElementById('jukebox-play-btn'); if(b) b.textContent='▶'; if('mediaSession' in navigator) navigator.mediaSession.playbackState='paused'; }
+        if(e.data === YT.PlayerState.PLAYING){ _jkPlaying=true; const b=document.getElementById('jukebox-play-btn'); if(b) b.textContent='⏸'; _jkStartSeekUpdater(); _jkStartSilentAudio(); if('mediaSession' in navigator) navigator.mediaSession.playbackState='playing'; }
+        if(e.data === YT.PlayerState.PAUSED){ _jkPlaying=false; const b=document.getElementById('jukebox-play-btn'); if(b) b.textContent='▶'; _jkStopSilentAudio(); if('mediaSession' in navigator) navigator.mediaSession.playbackState='paused'; }
       }
     }
   });
@@ -3935,7 +3965,7 @@ window.jkDeleteTrack = async function(id){
     if(_jkCurrentId===id){
       const idx=_jkPlaylist.indexOf(id);
       if(_jkPlaylist.length>1){ window.jkPlayTrack(_jkPlaylist[(idx+1)%_jkPlaylist.length]); }
-      else { _jkCurrentId=null;_jkPlaying=false; if(_jkReady)_jkPlayer.stopVideo(); _jkStopSeekUpdater(); document.getElementById('jukebox-player-bar').style.display='none'; }
+      else { _jkCurrentId=null;_jkPlaying=false; if(_jkReady)_jkPlayer.stopVideo(); _jkStopSeekUpdater(); _jkStopSilentAudio(); document.getElementById('jukebox-player-bar').style.display='none'; }
     }
     await remove(ref(db,`jukebox/${id}`));
     showToast('Canzone rimossa');
