@@ -3592,8 +3592,10 @@ let _jkPlaylistsUnsub = null;
 let _jkActiveFilter = ''; // '' = all, else playlist ID
 
 // Silent audio element: keeps Media Session alive when app is minimized
-// Tiny 1-second silent WAV in base64, looped
+// Tiny 1-second silent WAV generated in memory, looped
 let _jkSilentAudio = null;
+let _jkMediaSessionInterval = null;
+
 function _jkEnsureSilentAudio(){
   if(_jkSilentAudio) return _jkSilentAudio;
   // Minimal valid WAV: 1s silence, 8kHz mono 8-bit
@@ -3609,16 +3611,56 @@ function _jkEnsureSilentAudio(){
   const blob=new Blob([buffer],{type:'audio/wav'});
   _jkSilentAudio=new Audio(URL.createObjectURL(blob));
   _jkSilentAudio.loop=true;
-  _jkSilentAudio.volume=0.01; // near-silent but > 0 so browser keeps session
+  _jkSilentAudio.volume=0.01;
   return _jkSilentAudio;
 }
+
+// Re-assert our Media Session over YouTube's — called repeatedly while playing
+function _jkAssertMediaSession(){
+  if(!('mediaSession' in navigator) || !_jkCurrentId) return;
+  const track = _jukeboxCache[_jkCurrentId];
+  if(!track) return;
+  navigator.mediaSession.metadata = new MediaMetadata({
+    title: track.name || 'Senza titolo',
+    artist: track.addedBy || 'After Pasquetta',
+    album: 'Jukebox'
+  });
+  navigator.mediaSession.setActionHandler('play', ()=>{ if(_jkReady && _jkCurrentId) _jkPlayer.playVideo(); _jkStartSilentAudio(); });
+  navigator.mediaSession.setActionHandler('pause', ()=>{ if(_jkReady && _jkCurrentId) _jkPlayer.pauseVideo(); });
+  navigator.mediaSession.setActionHandler('nexttrack', ()=>{ window.jkNext(); });
+  navigator.mediaSession.setActionHandler('previoustrack', ()=>{ window.jkPrev(); });
+  navigator.mediaSession.playbackState = _jkPlaying ? 'playing' : 'paused';
+}
+
 function _jkStartSilentAudio(){
   const a=_jkEnsureSilentAudio();
   a.play().catch(()=>{});
+  // Assert our session now, then again after YouTube's iframe overrides it
+  _jkAssertMediaSession();
+  setTimeout(_jkAssertMediaSession, 500);
+  setTimeout(_jkAssertMediaSession, 1500);
+  setTimeout(_jkAssertMediaSession, 3000);
+  // Keep re-asserting every 5s while playing
+  if(_jkMediaSessionInterval) clearInterval(_jkMediaSessionInterval);
+  _jkMediaSessionInterval = setInterval(()=>{
+    if(!_jkPlaying){ clearInterval(_jkMediaSessionInterval); _jkMediaSessionInterval=null; return; }
+    _jkAssertMediaSession();
+    // Also make sure silent audio is still playing (browser can kill it)
+    if(_jkSilentAudio && _jkSilentAudio.paused) _jkSilentAudio.play().catch(()=>{});
+  }, 5000);
 }
+
 function _jkStopSilentAudio(){
   if(_jkSilentAudio){ _jkSilentAudio.pause(); }
+  if(_jkMediaSessionInterval){ clearInterval(_jkMediaSessionInterval); _jkMediaSessionInterval=null; }
 }
+
+// When app comes back to foreground, re-assert session and restart silent audio if needed
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState === 'visible' && _jkPlaying && _jkCurrentId){
+    _jkStartSilentAudio();
+  }
+});
 
 function extractYouTubeId(url){
   if(!url) return null;
@@ -3660,8 +3702,8 @@ window.onYouTubeIframeAPIReady = function(){
             window.jkPlayTrack(_jkPlaylist[r]);
           } else { window.jkNext(); }
         }
-        if(e.data === YT.PlayerState.PLAYING){ _jkPlaying=true; const b=document.getElementById('jukebox-play-btn'); if(b) b.textContent='⏸'; _jkStartSeekUpdater(); _jkStartSilentAudio(); if('mediaSession' in navigator) navigator.mediaSession.playbackState='playing'; }
-        if(e.data === YT.PlayerState.PAUSED){ _jkPlaying=false; const b=document.getElementById('jukebox-play-btn'); if(b) b.textContent='▶'; _jkStopSilentAudio(); if('mediaSession' in navigator) navigator.mediaSession.playbackState='paused'; }
+        if(e.data === YT.PlayerState.PLAYING){ _jkPlaying=true; const b=document.getElementById('jukebox-play-btn'); if(b) b.textContent='⏸'; _jkStartSeekUpdater(); _jkStartSilentAudio(); }
+        if(e.data === YT.PlayerState.PAUSED){ _jkPlaying=false; const b=document.getElementById('jukebox-play-btn'); if(b) b.textContent='▶'; _jkStopSilentAudio(); _jkAssertMediaSession(); }
       }
     }
   });
@@ -3837,18 +3879,6 @@ window.jkPlayTrack = function(id){
   document.getElementById('jukebox-now-title').textContent = track.name||'Senza titolo';
   document.getElementById('jukebox-play-btn').textContent = '⏸';
   document.getElementById('jukebox-player-bar').style.display = '';
-  // Media Session API: lock-screen / notification controls
-  if('mediaSession' in navigator){
-    navigator.mediaSession.metadata = new MediaMetadata({
-      title: track.name || 'Senza titolo',
-      artist: track.addedBy || 'After Pasquetta',
-      album: 'Jukebox'
-    });
-    navigator.mediaSession.setActionHandler('play', ()=>{ if(_jkReady && _jkCurrentId) _jkPlayer.playVideo(); });
-    navigator.mediaSession.setActionHandler('pause', ()=>{ if(_jkReady && _jkCurrentId) _jkPlayer.pauseVideo(); });
-    navigator.mediaSession.setActionHandler('nexttrack', ()=>{ window.jkNext(); });
-    navigator.mediaSession.setActionHandler('previoustrack', ()=>{ window.jkPrev(); });
-  }
   renderJukebox();
 };
 
