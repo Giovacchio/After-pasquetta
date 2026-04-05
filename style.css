@@ -206,7 +206,11 @@ canvas {max-width: 260px; max-height: 260px;}
 .msg {max-width: 85%; padding: 0.55rem 0.85rem; border-radius: 4px; font-size: 1.2rem; border: 2px solid var(--border); box-shadow: 2px 2px 0px rgba(0,0,0,0.1); word-break: break-word;}
 .msg-user {background: var(--accent); color: var(--text); align-self: flex-end;}
 .msg-other {background: var(--bg2); color: var(--text); align-self: flex-start;}
-.msg-name {font-size: 1rem; font-family: 'VT323', monospace; color: var(--border); margin-bottom: 0.2rem;}
+.msg-name {font-size: 1rem; font-family: 'VT323', monospace; color: var(--muted); margin-bottom: 0.2rem;}
+.msg-time {font-size: 0.75rem; font-family: sans-serif; color: var(--muted); margin-top: 0.15rem; opacity: 0.7;}
+.chat-link {color: var(--accent2); text-decoration: underline; word-break: break-all;}
+.chat-link:visited {color: var(--accent);}
+body.dark-mode .chat-link {color: var(--accent);}
 .chat-input-wrap {display: flex; gap: 0.5rem; padding: 0.8rem; border-top: 2px solid var(--border); background: var(--bg2);}
 .chat-input {flex: 1; background: var(--card); border: 2px solid var(--border); border-radius: 4px; color: var(--text); font-family: 'VT323', monospace; font-size: 1.2rem; padding: 0.55rem 0.8rem; outline: none; box-shadow: inset 2px 2px 0px rgba(0,0,0,0.05);}
 .btn-send {background: var(--accent); color: var(--text); border: 2px solid var(--border); border-radius: 4px; padding: 0.55rem 0.9rem; font-family: 'VT323', monospace; font-size: 1.2rem; cursor: pointer; transition: all 0.1s; box-shadow: 2px 2px 0px var(--border);}

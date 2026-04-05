@@ -812,6 +812,8 @@ function getAvatarHtml(name, size){
 renderHubLogin();
 
 // ── HOME ──────────────────────────────────────────────
+let _pollsListUnsub = null;
+
 async function loadHome(autoVoter){
   // Pulisci listener risultati se attivo
   if(typeof _unsub === 'function'){ _unsub(); _unsub=null; }
@@ -838,48 +840,60 @@ async function loadHome(autoVoter){
 
   const el=document.getElementById('polls-container');
   el.innerHTML='<div style="color:var(--muted)"><span class="spinner"></span>Caricamento...</div>';
-  try{
-    const snap=await get(ref(db,'polls'));
-    if(!snap.exists()){ el.innerHTML='<div class="empty-state"><div style="font-size:2.5rem;margin-bottom:0.8rem">📋</div>Nessun sondaggio ancora.<br>Creane uno cliccando il bottone sopra!</div>'; return; }
-    const polls=snap.val(); const ids=Object.keys(polls).reverse();
-    el.innerHTML='';
-    ids.forEach((id,i)=>{
-      const p=polls[id];
-      const qCount=p.questions?Object.keys(p.questions).length:0;
-      const totalVotes=p.questions?Object.values(p.questions).reduce((acc,q)=>acc+(q.votes?Object.keys(q.votes).length:0),0):0;
-      // Check if current voter has voted
-      let myVoteCount=0;
-      if(voterName && p.questions){
-        const sn=sanitize(voterName);
-        Object.values(p.questions).forEach(q=>{
-          const v=q.votes&&q.votes[sn];
-          if(v!==undefined&&v!==null&&!(Array.isArray(v)&&v.length===0)) myVoteCount++;
-        });
-      }
-      const voted = myVoteCount>0;
-      const div=document.createElement('div'); div.className='poll-item';
-      div.style.cursor='default';
-      div.innerHTML=`<div class="poll-num">${i+1}</div>
-        <div style="flex:1">
-          <div class="poll-item-q">${esc(p.title||'Sondaggio')}</div>
-          <div class="poll-item-meta">${qCount} domand${qCount===1?'a':'e'} · ${totalVotes} voti totali · da ${getAvatarHtml(p.creator,16)} ${esc(p.creator||'anonimo')}${voted?` · <span style="color:var(--accent);font-weight:600">✓ hai già votato</span>`:''}</div>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:0.4rem;align-items:flex-end">
-          <button class="btn btn-primary btn-vote-home" style="font-size:0.8rem;padding:0.4rem 0.9rem;white-space:nowrap">${voted?'Rivota':'Vota'}</button>
-          <button class="btn btn-secondary btn-res-home" style="font-size:0.8rem;padding:0.4rem 0.9rem;white-space:nowrap">Risultati</button>
-        </div>`;
-      div.querySelector('.btn-vote-home').onclick=(e)=>{
-        e.stopPropagation();
-        if(voterName){ loadVoteScreen(id,voterName); }
-        else { showToast('Torna alla Hub per inserire il tuo nome!'); }
-      };
-      div.querySelector('.btn-res-home').onclick=(e)=>{
-        e.stopPropagation();
-        loadResultsScreen(id);
-      };
-      el.appendChild(div);
-    });
-  }catch(e){ el.innerHTML='<div style="color:var(--danger)">Errore: '+esc(e.message)+'</div>'; }
+
+  // Detach previous polls listener if any
+  if(_pollsListUnsub){ _pollsListUnsub(); _pollsListUnsub=null; }
+
+  // Live listener — list updates in real time when anyone creates/votes
+  _pollsListUnsub = onValue(ref(db,'polls'), (snap)=>{
+    // Only render if we're still on the home screen
+    if(window._currentScreen !== 'screen-home') return;
+    _renderPollsList(snap.val(), voterName);
+  });
+}
+
+function _renderPollsList(pollsData, voterName){
+  const el=document.getElementById('polls-container');
+  if(!el) return;
+  if(!pollsData){ el.innerHTML='<div class="empty-state"><div style="font-size:2.5rem;margin-bottom:0.8rem">📋</div>Nessun sondaggio ancora.<br>Creane uno cliccando il bottone sopra!</div>'; return; }
+  const polls=pollsData; const ids=Object.keys(polls).reverse();
+  el.innerHTML='';
+  ids.forEach((id,i)=>{
+    const p=polls[id];
+    const qCount=p.questions?Object.keys(p.questions).length:0;
+    const totalVotes=p.questions?Object.values(p.questions).reduce((acc,q)=>acc+(q.votes?Object.keys(q.votes).length:0),0):0;
+    // Check if current voter has voted
+    let myVoteCount=0;
+    if(voterName && p.questions){
+      const sn=sanitize(voterName);
+      Object.values(p.questions).forEach(q=>{
+        const v=q.votes&&q.votes[sn];
+        if(v!==undefined&&v!==null&&!(Array.isArray(v)&&v.length===0)) myVoteCount++;
+      });
+    }
+    const voted = myVoteCount>0;
+    const div=document.createElement('div'); div.className='poll-item';
+    div.style.cursor='default';
+    div.innerHTML=`<div class="poll-num">${i+1}</div>
+      <div style="flex:1">
+        <div class="poll-item-q">${esc(p.title||'Sondaggio')}</div>
+        <div class="poll-item-meta">${qCount} domand${qCount===1?'a':'e'} · ${totalVotes} voti totali · da ${getAvatarHtml(p.creator,16)} ${esc(p.creator||'anonimo')}${voted?` · <span style="color:var(--accent);font-weight:600">✓ hai già votato</span>`:''}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:0.4rem;align-items:flex-end">
+        <button class="btn btn-primary btn-vote-home" style="font-size:0.8rem;padding:0.4rem 0.9rem;white-space:nowrap">${voted?'Rivota':'Vota'}</button>
+        <button class="btn btn-secondary btn-res-home" style="font-size:0.8rem;padding:0.4rem 0.9rem;white-space:nowrap">Risultati</button>
+      </div>`;
+    div.querySelector('.btn-vote-home').onclick=(e)=>{
+      e.stopPropagation();
+      if(voterName){ loadVoteScreen(id,voterName); }
+      else { showToast('Torna alla Hub per inserire il tuo nome!'); }
+    };
+    div.querySelector('.btn-res-home').onclick=(e)=>{
+      e.stopPropagation();
+      loadResultsScreen(id);
+    };
+    el.appendChild(div);
+  });
 }
 window.loadHome=loadHome;
 
@@ -1571,16 +1585,40 @@ function initChat(){
       wrap.style.alignItems=isMe?'flex-end':'flex-start';
       if(!isMe){
         const nameEl=document.createElement('div'); nameEl.className='msg-name';
-        nameEl.innerHTML=getAvatarHtml(m.name,16)+' '+(m.name||'Anonimo'); wrap.appendChild(nameEl);
+        nameEl.innerHTML=getAvatarHtml(m.name,16)+' '+esc(m.name||'Anonimo'); wrap.appendChild(nameEl);
       }
       const bubble=document.createElement('div');
       bubble.className='msg '+(isMe?'msg-user':'msg-other');
-      bubble.textContent=m.text;
+      // Linkify URLs in message text
+      bubble.innerHTML=_linkify(esc(m.text));
       wrap.appendChild(bubble);
+      // Timestamp
+      if(m.ts){
+        const timeEl=document.createElement('div'); timeEl.className='msg-time';
+        timeEl.textContent=_formatChatTime(m.ts);
+        timeEl.style.textAlign=isMe?'right':'left';
+        wrap.appendChild(timeEl);
+      }
       box.appendChild(wrap);
     });
     box.scrollTop=box.scrollHeight;
   });
+}
+
+// Format chat timestamp
+function _formatChatTime(ts){
+  const d=new Date(ts); const now=new Date();
+  const isToday = d.toDateString()===now.toDateString();
+  const time=d.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
+  if(isToday) return time;
+  const yesterday=new Date(now); yesterday.setDate(yesterday.getDate()-1);
+  if(d.toDateString()===yesterday.toDateString()) return 'ieri '+time;
+  return d.toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit'})+' '+time;
+}
+
+// Convert URLs in escaped text to clickable links
+function _linkify(escapedText){
+  return escapedText.replace(/(https?:\/\/[^\s<&]+)/g, '<a href="$1" target="_blank" rel="noopener" class="chat-link">$1</a>');
 }
 
 window.clearChat=async function(){
@@ -2783,6 +2821,8 @@ document.addEventListener('keydown',function(e){
 });
 
 initBacheca();
+initLista();
+initCitazioni();
 
 // ── HUB BADGE SYSTEM ─────────────────────────────────
 // Tracks new items per section using localStorage.
@@ -3565,13 +3605,6 @@ window.deleteCitazione=async function(id){
   }
 };
 
-// Badge watcher: CITAZIONI
-onValue(ref(db,'citazioni'),(snap)=>{
-  const data=snap.val()||{};
-  const count=Object.keys(data).length;
-  _updateHubBadge('screen-citazioni',count);
-});
-
 // ── JUKEBOX ──────────────────────────────────────────
 let _jukeboxCache = {};
 let _jukeboxUnsub = null;
@@ -3794,7 +3827,7 @@ window.jkSaveEdit = async function(){
   const playlistId = document.getElementById('jk-edit-playlist')?.value || '';
   try{
     const upd = {name, url, videoId};
-    if(playlistId) upd.playlistId = playlistId; else upd.playlistId = null;
+    if(playlistId) upd.playlistId = playlistId; else upd.playlistId = '';
     await update(ref(db,`jukebox/${_jkEditingId}`), upd);
     document.getElementById('jk-edit-overlay').style.display='none';
     // Update now-playing title if editing current track
@@ -3836,8 +3869,17 @@ function _jkHandleTrackEnd(){
   if(_jkPlaylist.length <= 1){
     // Only 1 track (or none) — stop playback, don't loop
     _jkPlaying = false;
+    _jkCurrentId = null;
     const b=document.getElementById('jukebox-play-btn'); if(b) b.textContent='▶';
     try{ _jkPlayer.stopVideo(); }catch(e){}
+    // Hide player bar after a short delay
+    setTimeout(()=>{
+      if(!_jkCurrentId){
+        document.getElementById('jukebox-player-bar').style.display='none';
+        document.getElementById('jukebox-now-title').textContent='—';
+      }
+    }, 1500);
+    renderJukebox();
     return;
   }
   if(_jkShuffleOn){
@@ -4184,13 +4226,6 @@ window.spinWheel=function(){
   }
   requestAnimationFrame(animate);
 };
-
-// Badge watcher: LISTA
-onValue(ref(db,'liste'),(snap)=>{
-  const data=snap.val()||{};
-  const count=Object.keys(data).length;
-  _updateHubBadge('screen-lista',count);
-});
 
 // Redraw wheel when options change
 document.getElementById('ruota-options')?.addEventListener('input',()=>{ if(!_wheelSpinning) drawWheel(); });
