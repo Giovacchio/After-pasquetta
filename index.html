@@ -2821,8 +2821,6 @@ document.addEventListener('keydown',function(e){
 });
 
 initBacheca();
-initLista();
-initCitazioni();
 
 // ── HUB BADGE SYSTEM ─────────────────────────────────
 // Tracks new items per section using localStorage.
@@ -3159,6 +3157,7 @@ function initLista(){
     _updateHubBadge('screen-lista',count);
   });
 }
+initLista();
 
 function renderListe(){
   const el=document.getElementById('lista-events-container');
@@ -3498,6 +3497,7 @@ function initCitazioni(){
     _updateHubBadge('screen-citazioni', count);
   });
 }
+initCitazioni();
 
 function renderCitazioni(){
   const el = document.getElementById('citazioni-container');
