@@ -2660,7 +2660,7 @@ window._evLocToggleMap=function(){
   wrap.style.display = show ? 'block' : 'none';
   if(show){
     if(!_evLocMap){
-      _evLocMap = L.map('ev-loc-map',{zoomControl:true,attributionControl:false}).setView([45.464,9.19],12);
+      _evLocMap = L.map('ev-loc-map',{zoomControl:true,attributionControl:false}).setView([41.9028,12.4964],12);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(_evLocMap);
       _evLocMap.on('click',function(e){
         _evLocSetPin(e.latlng.lat, e.latlng.lng);
