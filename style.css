@@ -887,3 +887,39 @@ body.dark-mode .lista-totals-val { color:var(--accent); }
 body.dark-mode .lista-participants-val {
   background:var(--accent);color:var(--bg);
 }
+
+/* ── LOCATION IN EVENTI ────────────────── */
+.evento-location {
+  margin-top:0.6rem;
+  border-top:1px solid var(--border);
+  padding-top:0.6rem;
+}
+.evento-loc-map {
+  height:120px;
+  border-radius:6px;
+  border:2px solid var(--border);
+  margin-bottom:0.5rem;
+  cursor:pointer;
+  z-index:0;
+}
+.evento-loc-info {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:0.5rem;
+  flex-wrap:wrap;
+  font-family:sans-serif;
+  font-size:0.88rem;
+  color:var(--text);
+}
+.evento-loc-btn {
+  font-size:0.85rem !important;
+  padding:0.25rem 0.6rem !important;
+  text-decoration:none;
+  white-space:nowrap;
+}
+#ev-loc-preview {
+  display:flex;
+  align-items:center;
+  gap:0.4rem;
+}

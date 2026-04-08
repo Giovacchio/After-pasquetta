@@ -11,6 +11,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="only light">
 <title>After pasquetta</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <link rel="stylesheet" href="./style.css">
 </head>
 <body>
@@ -305,6 +307,34 @@
         </div>
         <label>Note (opzionale)</label>
         <textarea id="ev-note-input" placeholder="Dettagli, indirizzo..." maxlength="300" style="margin-bottom:0.8rem;min-height:60px"></textarea>
+
+        <!-- LOCATION PICKER -->
+        <label>📍 Punto di ritrovo (opzionale)</label>
+        <div id="ev-loc-wrap" style="margin-bottom:0.8rem">
+          <div style="display:flex;gap:0.4rem;margin-bottom:0.5rem;flex-wrap:wrap">
+            <button type="button" class="btn btn-secondary" id="ev-loc-map-toggle" onclick="window._evLocToggleMap()" style="font-size:0.95rem;padding:0.35rem 0.7rem">🗺 Scegli sulla mappa</button>
+            <button type="button" class="btn btn-secondary" id="ev-loc-paste-toggle" onclick="window._evLocTogglePaste()" style="font-size:0.95rem;padding:0.35rem 0.7rem">📋 Incolla link Maps</button>
+          </div>
+          <!-- Paste link -->
+          <div id="ev-loc-paste-wrap" style="display:none;margin-bottom:0.5rem">
+            <input type="text" id="ev-loc-link-input" placeholder="Incolla link Google Maps..." style="margin-bottom:0.4rem">
+            <button type="button" class="btn btn-primary" onclick="window._evLocParseLink()" style="font-size:0.9rem;padding:0.3rem 0.7rem">✅ Usa questo link</button>
+          </div>
+          <!-- Map -->
+          <div id="ev-loc-map-wrap" style="display:none;margin-bottom:0.5rem">
+            <div id="ev-loc-map" style="height:220px;border-radius:6px;border:2px solid var(--border);z-index:0"></div>
+            <div style="font-size:0.8rem;color:var(--muted);font-family:sans-serif;margin-top:0.3rem">Tocca la mappa per piazzare il pin</div>
+          </div>
+          <!-- Label -->
+          <div id="ev-loc-label-wrap" style="display:none;margin-bottom:0.4rem">
+            <input type="text" id="ev-loc-label-input" placeholder="Nome del posto (es. Parco Sempione)">
+          </div>
+          <!-- Preview -->
+          <div id="ev-loc-preview" style="display:none;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:0.6rem 0.8rem;font-family:sans-serif;font-size:0.9rem">
+            <span id="ev-loc-preview-text"></span>
+            <button type="button" onclick="window._evLocClear()" style="margin-left:0.5rem;background:none;border:none;color:var(--danger);cursor:pointer;font-size:0.9rem">✖ Rimuovi</button>
+          </div>
+        </div>
         <div class="btn-row">
           <button class="btn btn-primary" id="btn-submit-evento" onclick="window.submitEvento && window.submitEvento()">✅ Salva evento</button>
           <button class="btn btn-secondary" onclick="window.cancelEventoForm && window.cancelEventoForm()">Annulla</button>
@@ -2477,12 +2507,35 @@ function renderEventoList(dateStr){
           <div class="evento-title">${esc(ev.title||'Evento')}</div>
           <div class="evento-meta">${ev.time?'🕐 '+esc(ev.time):''} · ${getAvatarHtml(ev.author,16)} ${esc(ev.author||'Anonimo')}</div>
           ${ev.note?`<div class="evento-note">${esc(ev.note)}</div>`:''}
+          ${ev.location&&ev.location.lat?`
+            <div class="evento-location">
+              <div class="evento-loc-map" id="evmap-${ev.id}"></div>
+              <div class="evento-loc-info">
+                <span>📍 ${esc(ev.location.label||`${ev.location.lat.toFixed(4)}, ${ev.location.lng.toFixed(4)}`)}</span>
+                <a href="${esc(ev.location.mapsUrl||`https://www.google.com/maps?q=${ev.location.lat},${ev.location.lng}`)}" target="_blank" rel="noopener" class="btn btn-secondary evento-loc-btn">🧭 Apri in Maps</a>
+              </div>
+            </div>
+          `:''}
         </div>
         <div style="display:flex;flex-direction:column;gap:0.3rem;position:absolute;top:0.4rem;right:0.4rem"><button class="evento-del" onclick="window.editEvento('${ev.id}')" title="Modifica" style="position:static">✏️</button><button class="evento-del" onclick="window.deleteEvento('${ev.id}')" title="Elimina" style="position:static">✖</button></div>
       </div>`;
     });
   }
   itemsEl.innerHTML=html;
+
+  // Init mini Leaflet maps for events with location
+  evs.forEach(ev=>{
+    if(!ev.location||!ev.location.lat) return;
+    const el = document.getElementById('evmap-'+ev.id);
+    if(!el) return;
+    const miniMap = L.map(el,{zoomControl:false,attributionControl:false,dragging:false,scrollWheelZoom:false,doubleClickZoom:false,touchZoom:false,boxZoom:false,keyboard:false}).setView([ev.location.lat,ev.location.lng],15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(miniMap);
+    L.marker([ev.location.lat,ev.location.lng]).addTo(miniMap);
+    // Open Maps on map click
+    el.addEventListener('click',()=>{
+      window.open(ev.location.mapsUrl||`https://www.google.com/maps?q=${ev.location.lat},${ev.location.lng}`,'_blank');
+    });
+  });
 }
 
 window.calPrev=function(){ calMonth--; if(calMonth<0){calMonth=11;calYear--;} calSelectedDate=null; _holidaysCache={..._holidaysCache,...getItalianHolidays(calYear)}; renderCal(); document.getElementById('eventi-day-list').style.display='none'; document.getElementById('eventi-form-wrap').style.display='none'; document.getElementById('dispo-day-detail').style.display='none'; document.getElementById('dispo-time-overlay').style.display='none'; document.getElementById('recurring-dispo-overlay').style.display='none'; };
@@ -2499,6 +2552,9 @@ window.openEventoForm=function(){
   document.getElementById('eventi-form-title').textContent='Nuovo evento — '+label.charAt(0).toUpperCase()+label.slice(1);
   document.getElementById('ev-title-input').value='';
   document.getElementById('ev-note-input').value='';
+  window._evLocClear();
+  document.getElementById('ev-loc-map-wrap').style.display='none';
+  document.getElementById('ev-loc-paste-wrap').style.display='none';
   document.getElementById('btn-submit-evento').textContent='✅ Salva evento';
   populateTimeSelects('ev-hour-input','ev-min-input',20,0);
   const fw=document.getElementById('eventi-form-wrap');
@@ -2522,6 +2578,10 @@ window.editEvento=function(id){
   document.getElementById('eventi-form-title').textContent='Modifica evento — '+label.charAt(0).toUpperCase()+label.slice(1);
   document.getElementById('ev-title-input').value=ev.title||'';
   document.getElementById('ev-note-input').value=ev.note||'';
+  window._evLocClear();
+  document.getElementById('ev-loc-map-wrap').style.display='none';
+  document.getElementById('ev-loc-paste-wrap').style.display='none';
+  if(ev.location) _evLocPrefill(ev.location);
   document.getElementById('btn-submit-evento').textContent='💾 Aggiorna evento';
   const [hh,mm]=(ev.time||'20:00').split(':');
   populateTimeSelects('ev-hour-input','ev-min-input',parseInt(hh)||20,parseInt(mm)||0);
@@ -2538,21 +2598,25 @@ window.submitEvento=async function(){
   const mm=document.getElementById('ev-min-input').value;
   const time=hh+':'+mm;
   const note=document.getElementById('ev-note-input').value.trim();
+  const location=_evLocGetData();
   const author=getVoterName()||'Anonimo';
   const btn=document.getElementById('btn-submit-evento');
   try{
     btn.disabled=true; btn.innerHTML='<span class="spinner"></span>Salvataggio...';
     if(_editingEventoId){
-      await update(ref(db,`eventi/${_editingEventoId}`),{title,time,note});
+      await update(ref(db,`eventi/${_editingEventoId}`),{title,time,note,location:location||null});
       showToast('Evento aggiornato! ✏️');
     } else {
       if(!calSelectedDate) return showToast('Seleziona un giorno');
-      await push(ref(db,'eventi'),{date:calSelectedDate,title,time,note,author,ts:Date.now()});
+      const evData = {date:calSelectedDate,title,time,note,author,ts:Date.now()};
+      if(location) evData.location = location;
+      await push(ref(db,'eventi'),evData);
       _selfActionPending['screen-eventi']=true;
       showToast('Evento salvato! 📅');
     }
     _editingEventoId = null;
     document.getElementById('eventi-form-wrap').style.display='none';
+    window._evLocClear();
   }catch(e){
     showToast('Errore: '+e.message);
     console.error('submitEvento error:',e);
@@ -2581,7 +2645,102 @@ function populateTimeSelects(hId,mId,defH,defM){
 window.cancelEventoForm=function(){
   _editingEventoId = null;
   document.getElementById('eventi-form-wrap').style.display='none';
+  window._evLocClear();
 };
+
+// ── LOCATION PICKER ──────────────────────────────────
+let _evLocMap = null, _evLocMarker = null;
+let _evLocData = null; // {lat,lng,label,mapsUrl}
+
+window._evLocToggleMap=function(){
+  const wrap = document.getElementById('ev-loc-map-wrap');
+  const pasteWrap = document.getElementById('ev-loc-paste-wrap');
+  pasteWrap.style.display='none';
+  const show = wrap.style.display==='none';
+  wrap.style.display = show ? 'block' : 'none';
+  if(show){
+    if(!_evLocMap){
+      _evLocMap = L.map('ev-loc-map',{zoomControl:true,attributionControl:false}).setView([45.464,9.19],12);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(_evLocMap);
+      _evLocMap.on('click',function(e){
+        _evLocSetPin(e.latlng.lat, e.latlng.lng);
+      });
+    }
+    setTimeout(()=>_evLocMap.invalidateSize(),150);
+    if(_evLocData) _evLocMap.setView([_evLocData.lat,_evLocData.lng],15);
+  }
+  document.getElementById('ev-loc-label-wrap').style.display = (show||_evLocData) ? 'block' : 'none';
+};
+
+window._evLocTogglePaste=function(){
+  const wrap = document.getElementById('ev-loc-paste-wrap');
+  document.getElementById('ev-loc-map-wrap').style.display='none';
+  wrap.style.display = wrap.style.display==='none' ? 'block' : 'none';
+};
+
+function _evLocSetPin(lat,lng){
+  _evLocData = {lat:Math.round(lat*1e6)/1e6, lng:Math.round(lng*1e6)/1e6, label:'', mapsUrl:`https://www.google.com/maps?q=${lat},${lng}`};
+  if(_evLocMarker) _evLocMarker.setLatLng([lat,lng]);
+  else if(_evLocMap) _evLocMarker = L.marker([lat,lng]).addTo(_evLocMap);
+  if(_evLocMap) _evLocMap.setView([lat,lng],15);
+  document.getElementById('ev-loc-label-wrap').style.display='block';
+  document.getElementById('ev-loc-preview').style.display='flex';
+  document.getElementById('ev-loc-preview-text').textContent=`📍 ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+}
+
+window._evLocParseLink=function(){
+  const raw = document.getElementById('ev-loc-link-input').value.trim();
+  if(!raw) return showToast('Incolla un link Google Maps');
+  // Try multiple Google Maps URL formats
+  let lat,lng;
+  // Format: @45.464,9.19,17z or @45.464,9.19
+  let m = raw.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+  if(m){ lat=parseFloat(m[1]); lng=parseFloat(m[2]); }
+  // Format: ?q=45.464,9.19 or query=...
+  if(!lat){ m = raw.match(/[?&]q=(-?\d+\.?\d*),(-?\d+\.?\d*)/); if(m){lat=parseFloat(m[1]);lng=parseFloat(m[2]);} }
+  // Format: place/.../@45.464,9.19 already covered
+  // Format: ll=45.464,9.19
+  if(!lat){ m = raw.match(/ll=(-?\d+\.?\d*),(-?\d+\.?\d*)/); if(m){lat=parseFloat(m[1]);lng=parseFloat(m[2]);} }
+  if(!lat || isNaN(lat) || isNaN(lng)) return showToast('Non riesco a estrarre le coordinate dal link');
+  _evLocSetPin(lat,lng);
+  _evLocData.mapsUrl = raw;
+  document.getElementById('ev-loc-paste-wrap').style.display='none';
+  // Show map too
+  const mapWrap = document.getElementById('ev-loc-map-wrap');
+  mapWrap.style.display='block';
+  if(!_evLocMap){
+    _evLocMap = L.map('ev-loc-map',{zoomControl:true,attributionControl:false}).setView([lat,lng],15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(_evLocMap);
+    _evLocMap.on('click',function(e){ _evLocSetPin(e.latlng.lat, e.latlng.lng); });
+    _evLocMarker = L.marker([lat,lng]).addTo(_evLocMap);
+  }
+  setTimeout(()=>_evLocMap.invalidateSize(),150);
+  showToast('Posizione trovata! 📍');
+};
+
+window._evLocClear=function(){
+  _evLocData = null;
+  if(_evLocMarker && _evLocMap){ _evLocMap.removeLayer(_evLocMarker); _evLocMarker=null; }
+  document.getElementById('ev-loc-preview').style.display='none';
+  document.getElementById('ev-loc-label-wrap').style.display='none';
+  document.getElementById('ev-loc-link-input').value='';
+  document.getElementById('ev-loc-label-input').value='';
+};
+
+function _evLocGetData(){
+  if(!_evLocData) return null;
+  const label = document.getElementById('ev-loc-label-input').value.trim();
+  return { lat:_evLocData.lat, lng:_evLocData.lng, label:label||'', mapsUrl:_evLocData.mapsUrl||'' };
+}
+
+function _evLocPrefill(loc){
+  if(!loc || !loc.lat) return;
+  _evLocData = {lat:loc.lat, lng:loc.lng, label:loc.label||'', mapsUrl:loc.mapsUrl||''};
+  document.getElementById('ev-loc-label-input').value = loc.label||'';
+  document.getElementById('ev-loc-preview').style.display='flex';
+  document.getElementById('ev-loc-preview-text').textContent=`📍 ${loc.label||''} (${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)})`;
+  document.getElementById('ev-loc-label-wrap').style.display='block';
+}
 
 window.deleteEvento=async function(id){
   if(!confirm('Eliminare questo evento?')) return;
