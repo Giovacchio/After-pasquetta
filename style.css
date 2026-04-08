@@ -923,3 +923,40 @@ body.dark-mode .lista-participants-val {
   align-items:center;
   gap:0.4rem;
 }
+
+/* ── COMPLEANNI ────────────────────────── */
+.bday-card {
+  padding:0.8rem 1rem;
+}
+.bday-today {
+  background:linear-gradient(135deg,#fff3cd,#ffeaa7);
+  border:2px solid #f0c040;
+  text-align:center;
+  position:relative;
+  overflow:hidden;
+}
+body.dark-mode .bday-today {
+  background:linear-gradient(135deg,#4a3f10,#5a4a15);
+  border-color:#b8960a;
+}
+.bday-confetti {
+  font-size:1.6rem;
+  letter-spacing:0.3rem;
+  margin-bottom:0.3rem;
+  animation:bdayPulse 1.5s ease-in-out infinite alternate;
+}
+@keyframes bdayPulse {
+  from { transform:scale(1); }
+  to { transform:scale(1.08); }
+}
+.bday-today-text {
+  font-family:'VT323',monospace;
+  font-size:1.4rem;
+  color:#7a5900;
+}
+body.dark-mode .bday-today-text {
+  color:#ffd54f;
+}
+.bday-next {
+  background:var(--bg2);
+}

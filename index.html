@@ -84,6 +84,9 @@
       </div>
     </div>
 
+    <!-- PROSSIMO COMPLEANNO -->
+    <div id="hub-birthday-wrap" style="display:none;margin-top:1.2rem"></div>
+
     <!-- CHAT IN HUB -->
     <div style="margin-top:1.5rem">
       <div class="chat-box">
@@ -759,6 +762,7 @@ function renderHubLogin(){
       </div>
       <div style="display:flex;gap:0.4rem">
         <button class="btn btn-secondary" style="font-size:0.85rem;padding:0.35rem 0.7rem" onclick="window.changeGlobalName()">Cambia nome</button>
+        <button class="btn btn-secondary" style="font-size:0.85rem;padding:0.35rem 0.7rem" onclick="window.openBirthdayPicker()">🎂</button>
         <button class="btn btn-danger" style="font-size:0.85rem;padding:0.35rem 0.7rem" onclick="logoutVoter()">Esci</button>
       </div>
     </div>`;
@@ -840,6 +844,131 @@ function getAvatarHtml(name, size){
 }
 // Render on load
 renderHubLogin();
+
+// ── COMPLEANNI ───────────────────────────────────────
+let _birthdaysCache = {}; // { sanitizedName: "MM-DD" }
+
+onValue(ref(db,'compleanni'), (snap)=>{
+  _birthdaysCache = snap.val()||{};
+  _renderBirthdayBanner();
+});
+
+function _renderBirthdayBanner(){
+  const wrap = document.getElementById('hub-birthday-wrap');
+  if(!wrap) return;
+  const entries = Object.entries(_birthdaysCache);
+  if(entries.length===0){ wrap.style.display='none'; return; }
+
+  const today = new Date();
+  const todayMD = String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
+
+  // Find today's birthdays
+  const todayBdays = entries.filter(([,md])=>md===todayMD);
+
+  // Find next upcoming birthday
+  let nextName=null, nextMD=null, nextDays=Infinity;
+  entries.forEach(([sName, md])=>{
+    if(md===todayMD) return; // skip today's
+    const [mm,dd] = md.split('-').map(Number);
+    const bdayThisYear = new Date(today.getFullYear(), mm-1, dd);
+    if(bdayThisYear <= today) bdayThisYear.setFullYear(today.getFullYear()+1);
+    const diff = Math.ceil((bdayThisYear - today)/(1000*60*60*24));
+    if(diff < nextDays){ nextDays=diff; nextName=sName; nextMD=md; }
+  });
+
+  // Reverse-lookup real name from sanitized
+  function unsanitizeName(sName){
+    // Try profiles cache first, fallback to sName
+    for(const [k,v] of Object.entries(_profilesCache)){
+      if(k===sName) return sName; // can't reverse perfectly, use sName
+    }
+    return sName;
+  }
+
+  let html = '';
+
+  // Today's birthdays — celebratory!
+  if(todayBdays.length > 0){
+    const names = todayBdays.map(([sn])=>sn).join(', ');
+    html+=`<div class="card bday-card bday-today">
+      <div class="bday-confetti">🎉🎂🥳🎈🎁</div>
+      <div class="bday-today-text">Buon compleanno ${esc(names)}!</div>
+    </div>`;
+  }
+
+  // Next upcoming
+  if(nextName && nextDays <= 30){
+    const [mm,dd] = nextMD.split('-').map(Number);
+    const dateLabel = new Date(today.getFullYear(), mm-1, dd).toLocaleDateString('it-IT',{day:'numeric',month:'long'});
+    const daysLabel = nextDays===1 ? 'domani!' : `tra ${nextDays} giorni`;
+    html+=`<div class="card bday-card bday-next">
+      <div style="display:flex;align-items:center;gap:0.6rem">
+        <span style="font-size:1.5rem">🎂</span>
+        <div>
+          <div style="font-family:'VT323',monospace;font-size:1.2rem;color:var(--text)">${getAvatarHtml(nextName,20)} ${esc(nextName)} — ${esc(dateLabel)}</div>
+          <div style="font-family:sans-serif;font-size:0.85rem;color:var(--muted)">${esc(daysLabel)}</div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  if(html){
+    wrap.innerHTML=html;
+    wrap.style.display='block';
+  } else {
+    wrap.style.display='none';
+  }
+}
+
+window.openBirthdayPicker=function(){
+  const name = getVoterName();
+  if(!name) return showToast('Inserisci prima il tuo nome');
+  const sName = sanitize(name);
+  const current = _birthdaysCache[sName]||'';
+  let defaultVal = '';
+  if(current){
+    const [mm,dd] = current.split('-');
+    defaultVal = `2000-${mm}-${dd}`;
+  }
+  // Create overlay
+  const ov = document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1200;display:flex;align-items:center;justify-content:center;';
+  ov.onclick=function(e){if(e.target===ov)ov.remove();};
+  ov.innerHTML=`<div style="background:var(--card);border:2px solid var(--border);border-radius:6px;padding:1.5rem;width:min(320px,90vw);box-shadow:8px 8px 0px rgba(0,0,0,0.2);text-align:center;">
+    <div class="section-title" style="margin-bottom:1rem">🎂 Il tuo compleanno</div>
+    <input type="date" id="bday-input" value="${defaultVal}" style="width:100%;background:var(--bg2);border:2px solid var(--border);border-radius:4px;color:var(--text);font-family:'VT323',monospace;font-size:1.2rem;padding:0.5rem;outline:none;margin-bottom:1rem;box-sizing:border-box;">
+    <div style="display:flex;gap:0.5rem">
+      <button class="btn btn-primary" style="flex:1" onclick="window._saveBirthday()">💾 Salva</button>
+      ${current?`<button class="btn btn-danger" style="flex:0" onclick="window._removeBirthday()">🗑</button>`:''}
+      <button class="btn btn-secondary" onclick="this.closest('div[style*=fixed]').remove()">Chiudi</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  window._bdayOverlay=ov;
+};
+
+window._saveBirthday=async function(){
+  const input = document.getElementById('bday-input');
+  if(!input||!input.value) return showToast('Seleziona una data');
+  const parts = input.value.split('-');
+  const md = parts[1]+'-'+parts[2];
+  const sName = sanitize(getVoterName());
+  try{
+    await set(ref(db,`compleanni/${sName}`), md);
+    showToast('Compleanno salvato! 🎂');
+  }catch(e){ showToast('Errore: '+e.message); }
+  if(window._bdayOverlay) window._bdayOverlay.remove();
+};
+
+window._removeBirthday=async function(){
+  if(!confirm('Rimuovere il tuo compleanno?')) return;
+  const sName = sanitize(getVoterName());
+  try{
+    await remove(ref(db,`compleanni/${sName}`));
+    showToast('Compleanno rimosso');
+  }catch(e){ showToast('Errore: '+e.message); }
+  if(window._bdayOverlay) window._bdayOverlay.remove();
+};
 
 // ── HOME ──────────────────────────────────────────────
 let _pollsListUnsub = null;
