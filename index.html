@@ -73,7 +73,7 @@
 
     <!-- COUNTDOWN PROSSIMO EVENTO -->
     <div id="hub-countdown-wrap" style="display:none;margin-top:1.2rem">
-      <div class="card hub-countdown-card">
+      <div class="card hub-countdown-card" onclick="window.goToNextEvent()" style="cursor:pointer">
         <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.6rem">
           <span style="font-size:1.5rem">⏳</span>
           <div class="section-title" style="margin:0">Prossimo evento</div>
@@ -3189,7 +3189,7 @@ onValue(ref(db,'eventi'),(snap)=>{
       nearest = ev;
     }
   });
-  _nextEvent = nearest ? {title:nearest.title, date:nearestDate, time:nearest.time} : null;
+  _nextEvent = nearest ? {title:nearest.title, date:nearestDate, time:nearest.time, dateStr:nearest.date} : null;
   _renderHubCountdown();
 });
 
@@ -3229,6 +3229,16 @@ function _updateCountdownTimer(){
   if(days === 0 && mins > 0) parts.push(mins + ' min');
   el.textContent = parts.length ? 'tra ' + parts.join(', ') : '🎉 Adesso!';
 }
+
+window.goToNextEvent=function(){
+  if(!_nextEvent || !_nextEvent.dateStr) return;
+  const [y,m,d] = _nextEvent.dateStr.split('-').map(Number);
+  goTo('screen-eventi');
+  calYear = y;
+  calMonth = m - 1;
+  window.setCalMode('eventi');
+  selectCalDay(y, m-1, d);
+};
 
 // Badge watcher: BACHECA — count all posts
 onValue(ref(db,'bacheca'),(snap)=>{
