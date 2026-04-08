@@ -3262,7 +3262,8 @@ window.goToNextEvent=function(){
   // Always set pending nav so the listener picks it up if it fires after
   _pendingEventiNav = { dateStr: ds };
 
-  goTo('screen-eventi');
+  // MUST use window.goTo (wrapped) to trigger initEventi()
+  window.goTo('screen-eventi');
   window.setCalMode('eventi');
 
   if(hasData){
