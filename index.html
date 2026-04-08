@@ -26,6 +26,19 @@
     <!-- LOGIN GLOBALE -->
     <div id="hub-login-wrap"></div>
 
+    <!-- COUNTDOWN PROSSIMO EVENTO -->
+    <div id="hub-countdown-wrap" style="display:none;margin-bottom:1rem">
+      <div class="card hub-countdown-card" onclick="window.goToNextEvent()" style="cursor:pointer">
+        <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.6rem">
+          <span style="font-size:1.5rem">⏳</span>
+          <div class="section-title" style="margin:0">Prossimo evento</div>
+        </div>
+        <div class="hub-countdown-title" id="hub-countdown-title"></div>
+        <div class="hub-countdown-timer" id="hub-countdown-timer"></div>
+        <div class="hub-countdown-date" id="hub-countdown-date"></div>
+      </div>
+    </div>
+
     <div class="hub-grid">
       <div class="hub-tile" onclick="goToPolls()">
         <span class="hub-tile-icon">📋</span>
@@ -68,19 +81,6 @@
         <span class="hub-tile-label">Jukebox</span>
         <span class="hub-tile-sub">Playlist del gruppo</span>
         <div class="hub-tile-badge" id="hub-jukebox-badge">0</div>
-      </div>
-    </div>
-
-    <!-- COUNTDOWN PROSSIMO EVENTO -->
-    <div id="hub-countdown-wrap" style="display:none;margin-top:1.2rem">
-      <div class="card hub-countdown-card" onclick="window.goToNextEvent()" style="cursor:pointer">
-        <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.6rem">
-          <span style="font-size:1.5rem">⏳</span>
-          <div class="section-title" style="margin:0">Prossimo evento</div>
-        </div>
-        <div class="hub-countdown-title" id="hub-countdown-title"></div>
-        <div class="hub-countdown-timer" id="hub-countdown-timer"></div>
-        <div class="hub-countdown-date" id="hub-countdown-date"></div>
       </div>
     </div>
 
