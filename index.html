@@ -1880,6 +1880,8 @@ window.setDispoActiveMode=function(mode){
 function dateKey(y, m, d){ return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
 function todayKey(){ const n=new Date(); return dateKey(n.getFullYear(),n.getMonth(),n.getDate()); }
 
+let _pendingEventiNav = null; // { dateStr: 'YYYY-MM-DD' }
+
 function initEventi(){
   if(!_eventiUnsub){
     _eventiUnsub = onValue(ref(db,'eventi'), (snap)=>{
@@ -1894,6 +1896,18 @@ function initEventi(){
       _injectBirthdaysIntoEvents();
       if(!_isDragging) renderCal();
       if(calSelectedDate && calMode==='eventi') renderEventoList(calSelectedDate);
+      // Handle pending navigation from countdown click
+      if(_pendingEventiNav){
+        const nav = _pendingEventiNav;
+        _pendingEventiNav = null;
+        const [y,m,d] = nav.dateStr.split('-').map(Number);
+        calSelectedDate = nav.dateStr;
+        renderCal();
+        renderEventoList(nav.dateStr);
+        const dayList = document.getElementById('eventi-day-list');
+        if(dayList){ dayList.style.display='block'; dayList.scrollIntoView({behavior:'smooth',block:'nearest'}); }
+        document.getElementById('eventi-form-wrap').style.display='none';
+      }
     });
   }
   if(!_dispoUnsub){
@@ -3235,25 +3249,27 @@ function _updateCountdownTimer(){
 
 window.goToNextEvent=function(){
   if(!_nextEvent || !_nextEvent.dateStr) return;
-  const [y,m,d] = _nextEvent.dateStr.split('-').map(Number);
+  const ds = _nextEvent.dateStr;
+  const [y,m,d] = ds.split('-').map(Number);
   calYear = y;
   calMonth = m - 1;
-  calSelectedDate = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
   calMode = 'eventi';
+  calSelectedDate = ds;
+
+  // If cache already has data for this date, we can render directly
+  const hasData = _eventiCache[ds] && _eventiCache[ds].length > 0;
+
+  // Always set pending nav so the listener picks it up if it fires after
+  _pendingEventiNav = { dateStr: ds };
+
   goTo('screen-eventi');
-  // setCalMode renders calendar and toggles UI
   window.setCalMode('eventi');
-  // Show day list immediately (renderEventoList will fill it when cache is ready)
-  renderEventoList(calSelectedDate);
-  const dayList = document.getElementById('eventi-day-list');
-  if(dayList){ dayList.style.display='block'; }
-  document.getElementById('eventi-form-wrap').style.display='none';
-  // Re-render after listener has likely fired with fresh data
-  setTimeout(()=>{
-    renderCal();
-    renderEventoList(calSelectedDate);
-    if(dayList) dayList.scrollIntoView({behavior:'smooth',block:'nearest'});
-  }, 300);
+
+  if(hasData){
+    // Data already available — select now
+    _pendingEventiNav = null;
+    selectCalDay(y, m-1, d);
+  }
 };
 
 // Badge watcher: BACHECA — count all posts
