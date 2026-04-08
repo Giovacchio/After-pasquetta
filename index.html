@@ -3238,10 +3238,22 @@ window.goToNextEvent=function(){
   const [y,m,d] = _nextEvent.dateStr.split('-').map(Number);
   calYear = y;
   calMonth = m - 1;
+  calSelectedDate = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  calMode = 'eventi';
   goTo('screen-eventi');
+  // setCalMode renders calendar and toggles UI
   window.setCalMode('eventi');
-  // Small delay to let initEventi listener populate cache on first visit
-  setTimeout(()=>{ selectCalDay(y, m-1, d); }, 120);
+  // Show day list immediately (renderEventoList will fill it when cache is ready)
+  renderEventoList(calSelectedDate);
+  const dayList = document.getElementById('eventi-day-list');
+  if(dayList){ dayList.style.display='block'; }
+  document.getElementById('eventi-form-wrap').style.display='none';
+  // Re-render after listener has likely fired with fresh data
+  setTimeout(()=>{
+    renderCal();
+    renderEventoList(calSelectedDate);
+    if(dayList) dayList.scrollIntoView({behavior:'smooth',block:'nearest'});
+  }, 300);
 };
 
 // Badge watcher: BACHECA — count all posts
