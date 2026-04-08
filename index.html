@@ -3236,11 +3236,12 @@ function _updateCountdownTimer(){
 window.goToNextEvent=function(){
   if(!_nextEvent || !_nextEvent.dateStr) return;
   const [y,m,d] = _nextEvent.dateStr.split('-').map(Number);
-  goTo('screen-eventi');
   calYear = y;
   calMonth = m - 1;
+  goTo('screen-eventi');
   window.setCalMode('eventi');
-  selectCalDay(y, m-1, d);
+  // Small delay to let initEventi listener populate cache on first visit
+  setTimeout(()=>{ selectCalDay(y, m-1, d); }, 120);
 };
 
 // Badge watcher: BACHECA — count all posts
@@ -4422,12 +4423,18 @@ function renderDispoUpcoming(){
   const el=document.getElementById('dispo-upcoming-list');
   if(!el) return;
   const tk=todayKey();
+  const now=new Date();
+  const maxDate=new Date(now.getFullYear(),now.getMonth(),now.getDate()+30);
+  const maxStr=maxDate.toISOString().slice(0,10);
+  const seenBdays=new Set();
   const future=Object.entries(_eventiCache)
     .filter(([k])=>k>=tk)
     .sort((a,b)=>a[0].localeCompare(b[0]));
   if(future.length===0){ el.innerHTML='<div style="color:var(--muted);font-size:1.1rem">Nessun evento in programma.</div>'; return; }
   el.innerHTML='';
-  future.slice(0,8).forEach(([dateStr,evs])=>{
+  let shown=0;
+  future.forEach(([dateStr,evs])=>{
+    if(shown>=8) return;
     const [y,m,d]=dateStr.split('-');
     const dt=new Date(+y,+m-1,+d);
     const dayLabel=dt.toLocaleDateString('it-IT',{weekday:'short',day:'numeric',month:'short'});
@@ -4435,6 +4442,15 @@ function renderDispoUpcoming(){
     const dispoDay=_dispoCache[dateStr]||{};
     const dispoCount=Object.keys(dispoDay).length;
     evs.forEach(ev=>{
+      if(shown>=8) return;
+      // Birthday filter: skip if >30 days or duplicate person
+      if(ev._isBirthday){
+        if(dateStr>maxStr) return;
+        const bdayKey=ev.author;
+        if(seenBdays.has(bdayKey)) return;
+        seenBdays.add(bdayKey);
+      }
+      shown++;
       const div=document.createElement('div'); div.className='upcoming-evento';
       div.innerHTML=`<div class="upcoming-date-badge">${dayLabel}${holiday?' 🎉':''}</div>
         <div class="upcoming-title">${esc(ev.title||'Evento')}</div>
@@ -4443,6 +4459,7 @@ function renderDispoUpcoming(){
       el.appendChild(div);
     });
   });
+  if(shown===0) el.innerHTML='<div style="color:var(--muted);font-size:1.1rem">Nessun evento in programma.</div>';
 }
 
 window.renderRiepilogo=renderRiepilogo;
