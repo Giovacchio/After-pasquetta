@@ -960,3 +960,9 @@ body.dark-mode .bday-today-text {
 .bday-next {
   background:var(--bg2);
 }
+.evento-birthday {
+  background:linear-gradient(135deg,#fff9e6,#fff3cd);
+}
+body.dark-mode .evento-birthday {
+  background:linear-gradient(135deg,#3a3520,#4a3f10);
+}

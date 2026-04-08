@@ -84,9 +84,6 @@
       </div>
     </div>
 
-    <!-- PROSSIMO COMPLEANNO -->
-    <div id="hub-birthday-wrap" style="display:none;margin-top:1.2rem"></div>
-
     <!-- CHAT IN HUB -->
     <div style="margin-top:1.5rem">
       <div class="chat-box">
@@ -846,78 +843,54 @@ function getAvatarHtml(name, size){
 renderHubLogin();
 
 // ── COMPLEANNI ───────────────────────────────────────
-let _birthdaysCache = {}; // { sanitizedName: "MM-DD" }
+let _birthdaysCache = {}; // { sanitizedName: "YYYY-MM-DD" }
 
 onValue(ref(db,'compleanni'), (snap)=>{
   _birthdaysCache = snap.val()||{};
-  _renderBirthdayBanner();
+  _injectBirthdaysIntoEvents();
+  // Re-render if on eventi screen
+  if(window._currentScreen==='screen-eventi' && !_isDragging) renderCal();
+  if(window._currentScreen==='screen-eventi' && calSelectedDate && calMode==='eventi') renderEventoList(calSelectedDate);
+  _updateNextEventCountdown();
 });
 
-function _renderBirthdayBanner(){
-  const wrap = document.getElementById('hub-birthday-wrap');
-  if(!wrap) return;
-  const entries = Object.entries(_birthdaysCache);
-  if(entries.length===0){ wrap.style.display='none'; return; }
-
-  const today = new Date();
-  const todayMD = String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
-
-  // Find today's birthdays
-  const todayBdays = entries.filter(([,md])=>md===todayMD);
-
-  // Find next upcoming birthday
-  let nextName=null, nextMD=null, nextDays=Infinity;
-  entries.forEach(([sName, md])=>{
-    if(md===todayMD) return; // skip today's
-    const [mm,dd] = md.split('-').map(Number);
-    const bdayThisYear = new Date(today.getFullYear(), mm-1, dd);
-    if(bdayThisYear <= today) bdayThisYear.setFullYear(today.getFullYear()+1);
-    const diff = Math.ceil((bdayThisYear - today)/(1000*60*60*24));
-    if(diff < nextDays){ nextDays=diff; nextName=sName; nextMD=md; }
-  });
-
-  // Reverse-lookup real name from sanitized
-  function unsanitizeName(sName){
-    // Try profiles cache first, fallback to sName
-    for(const [k,v] of Object.entries(_profilesCache)){
-      if(k===sName) return sName; // can't reverse perfectly, use sName
+function _injectBirthdaysIntoEvents(){
+  // Remove old injected birthdays
+  for(const k of Object.keys(_eventiCache)){
+    _eventiCache[k] = _eventiCache[k].filter(ev=>!ev._isBirthday);
+    if(_eventiCache[k].length===0) delete _eventiCache[k];
+  }
+  // Inject birthdays for current year and next year
+  const thisYear = new Date().getFullYear();
+  Object.entries(_birthdaysCache).forEach(([sName, dateVal])=>{
+    // Support both old "MM-DD" and new "YYYY-MM-DD" formats
+    let mm, dd, birthYear;
+    if(dateVal.length===10){
+      [birthYear, mm, dd] = dateVal.split('-');
+    } else {
+      [mm, dd] = dateVal.split('-');
+      birthYear = null;
     }
-    return sName;
-  }
-
-  let html = '';
-
-  // Today's birthdays — celebratory!
-  if(todayBdays.length > 0){
-    const names = todayBdays.map(([sn])=>sn).join(', ');
-    html+=`<div class="card bday-card bday-today">
-      <div class="bday-confetti">🎉🎂🥳🎈🎁</div>
-      <div class="bday-today-text">Buon compleanno ${esc(names)}!</div>
-    </div>`;
-  }
-
-  // Next upcoming
-  if(nextName && nextDays <= 30){
-    const [mm,dd] = nextMD.split('-').map(Number);
-    const dateLabel = new Date(today.getFullYear(), mm-1, dd).toLocaleDateString('it-IT',{day:'numeric',month:'long'});
-    const daysLabel = nextDays===1 ? 'domani!' : `tra ${nextDays} giorni`;
-    html+=`<div class="card bday-card bday-next">
-      <div style="display:flex;align-items:center;gap:0.6rem">
-        <span style="font-size:1.5rem">🎂</span>
-        <div>
-          <div style="font-family:'VT323',monospace;font-size:1.2rem;color:var(--text)">${getAvatarHtml(nextName,20)} ${esc(nextName)} — ${esc(dateLabel)}</div>
-          <div style="font-family:sans-serif;font-size:0.85rem;color:var(--muted)">${esc(daysLabel)}</div>
-        </div>
-      </div>
-    </div>`;
-  }
-
-  if(html){
-    wrap.innerHTML=html;
-    wrap.style.display='block';
-  } else {
-    wrap.style.display='none';
-  }
+    [thisYear, thisYear+1].forEach(yr=>{
+      const age = birthYear ? yr - parseInt(birthYear) : null;
+      const dateStr = `${yr}-${mm}-${dd}`;
+      const ev = {
+        id: `_bday_${sName}_${yr}`,
+        _isBirthday: true,
+        title: `🎂 Compleanno di ${sName}${age ? ` (${age} anni)` : ''}`,
+        date: dateStr,
+        time: null,
+        note: null,
+        author: sName,
+        ts: 0
+      };
+      if(!_eventiCache[dateStr]) _eventiCache[dateStr] = [];
+      // Don't add duplicates
+      if(!_eventiCache[dateStr].some(e=>e.id===ev.id)){
+        _eventiCache[dateStr].unshift(ev);
+      }
+    });
+  });
 }
 
 window.openBirthdayPicker=function(){
@@ -927,10 +900,9 @@ window.openBirthdayPicker=function(){
   const current = _birthdaysCache[sName]||'';
   let defaultVal = '';
   if(current){
-    const [mm,dd] = current.split('-');
-    defaultVal = `2000-${mm}-${dd}`;
+    if(current.length===10) defaultVal = current;
+    else defaultVal = `2000-${current}`;
   }
-  // Create overlay
   const ov = document.createElement('div');
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1200;display:flex;align-items:center;justify-content:center;';
   ov.onclick=function(e){if(e.target===ov)ov.remove();};
@@ -950,11 +922,9 @@ window.openBirthdayPicker=function(){
 window._saveBirthday=async function(){
   const input = document.getElementById('bday-input');
   if(!input||!input.value) return showToast('Seleziona una data');
-  const parts = input.value.split('-');
-  const md = parts[1]+'-'+parts[2];
   const sName = sanitize(getVoterName());
   try{
-    await set(ref(db,`compleanni/${sName}`), md);
+    await set(ref(db,`compleanni/${sName}`), input.value); // saves YYYY-MM-DD
     showToast('Compleanno salvato! 🎂');
   }catch(e){ showToast('Errore: '+e.message); }
   if(window._bdayOverlay) window._bdayOverlay.remove();
@@ -1921,6 +1891,7 @@ function initEventi(){
         _eventiCache[k].push({id,...ev});
         _eventiCache[k].sort((a,b)=>(a.time||'').localeCompare(b.time||''));
       });
+      _injectBirthdaysIntoEvents();
       if(!_isDragging) renderCal();
       if(calSelectedDate && calMode==='eventi') renderEventoList(calSelectedDate);
     });
@@ -2631,10 +2602,11 @@ function renderEventoList(dateStr){
     html+='<div class="bacheca-empty" style="padding:1rem 0">Nessun evento.<br>Aggiungine uno!</div>';
   } else {
     evs.forEach(ev=>{
-      html+=`<div class="evento-item"><div class="evento-color-bar"></div>
+      const isBday = ev._isBirthday;
+      html+=`<div class="evento-item${isBday?' evento-birthday':''}"><div class="evento-color-bar"${isBday?' style="background:linear-gradient(180deg,#f0c040,#e67e22)"':''}></div>
         <div class="evento-body">
           <div class="evento-title">${esc(ev.title||'Evento')}</div>
-          <div class="evento-meta">${ev.time?'🕐 '+esc(ev.time):''} · ${getAvatarHtml(ev.author,16)} ${esc(ev.author||'Anonimo')}</div>
+          ${isBday?'':`<div class="evento-meta">${ev.time?'🕐 '+esc(ev.time):''} · ${getAvatarHtml(ev.author,16)} ${esc(ev.author||'Anonimo')}</div>`}
           ${ev.note?`<div class="evento-note">${esc(ev.note)}</div>`:''}
           ${ev.location&&ev.location.lat?`
             <div class="evento-location">
@@ -2646,7 +2618,7 @@ function renderEventoList(dateStr){
             </div>
           `:''}
         </div>
-        <div style="display:flex;flex-direction:column;gap:0.3rem;position:absolute;top:0.4rem;right:0.4rem"><button class="evento-del" onclick="window.editEvento('${ev.id}')" title="Modifica" style="position:static">✏️</button><button class="evento-del" onclick="window.deleteEvento('${ev.id}')" title="Elimina" style="position:static">✖</button></div>
+        ${isBday?'':`<div style="display:flex;flex-direction:column;gap:0.3rem;position:absolute;top:0.4rem;right:0.4rem"><button class="evento-del" onclick="window.editEvento('${ev.id}')" title="Modifica" style="position:static">✏️</button><button class="evento-del" onclick="window.deleteEvento('${ev.id}')" title="Elimina" style="position:static">✖</button></div>`}
       </div>`;
     });
   }
@@ -3170,15 +3142,21 @@ onValue(ref(db,'eventi'),(snap)=>{
   const data = snap.val()||{};
   const count = Object.keys(data).length;
   _updateHubBadge('screen-eventi', count);
+  _lastEventiSnap = data;
+  _updateNextEventCountdown();
+});
 
-  // Find next future event for countdown
+let _lastEventiSnap = {};
+
+function _updateNextEventCountdown(){
+  const data = _lastEventiSnap;
   const now = new Date();
-  const todayStr = now.toISOString().slice(0,10);
   let nearest = null;
   let nearestDate = null;
+
+  // Check real events
   Object.values(data).forEach(ev=>{
     if(!ev.date) return;
-    // Build date+time
     let evDate;
     if(ev.time){
       const [h,m] = ev.time.split(':').map(Number);
@@ -3186,15 +3164,37 @@ onValue(ref(db,'eventi'),(snap)=>{
     } else {
       evDate = new Date(ev.date+'T23:59:59');
     }
-    if(evDate <= now) return; // skip past events
+    if(evDate <= now) return;
     if(!nearestDate || evDate < nearestDate){
       nearestDate = evDate;
-      nearest = ev;
+      nearest = {title:ev.title, date:nearestDate, time:ev.time, dateStr:ev.date};
     }
   });
-  _nextEvent = nearest ? {title:nearest.title, date:nearestDate, time:nearest.time, dateStr:nearest.date} : null;
+
+  // Check birthdays
+  Object.entries(_birthdaysCache).forEach(([sName, dateVal])=>{
+    let mm, dd, birthYear;
+    if(dateVal.length===10){ [birthYear,mm,dd]=dateVal.split('-'); }
+    else { [mm,dd]=dateVal.split('-'); birthYear=null; }
+    const bdayThisYear = new Date(now.getFullYear(), parseInt(mm)-1, parseInt(dd), 0, 0, 0);
+    let bdayDate = bdayThisYear;
+    if(bdayDate <= now) bdayDate = new Date(now.getFullYear()+1, parseInt(mm)-1, parseInt(dd), 0, 0, 0);
+    if(!nearestDate || bdayDate < nearestDate){
+      nearestDate = bdayDate;
+      const age = birthYear ? bdayDate.getFullYear() - parseInt(birthYear) : null;
+      const yr = bdayDate.getFullYear();
+      nearest = {
+        title:`🎂 Compleanno di ${sName}${age?' ('+age+' anni)':''}`,
+        date:nearestDate,
+        time:null,
+        dateStr:`${yr}-${mm}-${dd}`
+      };
+    }
+  });
+
+  _nextEvent = nearest;
   _renderHubCountdown();
-});
+}
 
 function _renderHubCountdown(){
   const wrap = document.getElementById('hub-countdown-wrap');
