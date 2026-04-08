@@ -2859,7 +2859,10 @@ window._evLocClear=function(){
 function _evLocGetData(){
   if(!_evLocData) return null;
   const label = document.getElementById('ev-loc-label-input').value.trim();
-  return { lat:_evLocData.lat, lng:_evLocData.lng, label:label||'', mapsUrl:_evLocData.mapsUrl||'' };
+  let mapsUrl = _evLocData.mapsUrl||'';
+  // If URL too long, generate a clean one from coordinates
+  if(mapsUrl.length > 1500) mapsUrl = `https://www.google.com/maps?q=${_evLocData.lat},${_evLocData.lng}`;
+  return { lat:_evLocData.lat, lng:_evLocData.lng, label:label||'', mapsUrl };
 }
 
 function _evLocPrefill(loc){
