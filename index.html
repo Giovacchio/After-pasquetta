@@ -3206,6 +3206,8 @@ function _updateNextEventCountdown(){
     }
   });
 
+  // Mostra solo eventi entro 30 giorni
+  if(nearest && (nearest.date - now) > 30*24*60*60*1000) nearest = null;
   _nextEvent = nearest;
   _renderHubCountdown();
 }
